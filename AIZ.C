@@ -236,6 +236,7 @@ void AIZ(bool isY=false){
 
   // Lepton-lepton eta/phi correlations
   TH2D *hEta_ep_vs_em = new TH2D("eta_ep_vs_em", ";#eta(e^{+});#eta(e^{-})", etaBins, etaMin, etaMax, etaBins, etaMin, etaMax);
+  TH2D *hEta_eleading_vs_esubleading = new TH2D("eta_eleading_vs_esubleading", ";#eta(e_{leading});#eta(e_{subleading})", etaBins/2, 0, etaMax, etaBins/2, 0, etaMax);
   TH2D *hPhi_ep_vs_em = new TH2D("phi_ep_vs_em", ";#phi(e^{+});#phi(e^{-})", phiBins, phiMin, phiMax, phiBins, phiMin, phiMax);
   TH2D *hPt_ep_vs_em = new TH2D("pt_ep_vs_em", ";p_{T}(e^{+}) [GeV];p_{T}(e^{-}) [GeV]", pt2dBins, 0., pt2dMax, pt2dBins, 0., pt2dMax);
 
@@ -260,13 +261,13 @@ void AIZ(bool isY=false){
   // DeltaEta show separation alcong the beam axis and can be sensitive to PDFs and higher-order effects; should be symmetric around 0 for Z->ll.
   // Cosine of opening angle between leptons in lab frame can provide complementary information to DeltaR and DeltaPhi, especially for events where leptons are close in angle but not necessarily back-to-back.
   TH1D *hDeltaR_ll = new TH1D("deltaR_ll", ";#DeltaR(l_{1},l_{2});Events", 80, 0., 8.0);
-  TH1D *hDeltaPhi_ll = new TH1D("deltaPhi_ll", ";#Delta#phi(l_{1},l_{2});Events", 64, -M_PI, M_PI);
-  TH1D *hDeltaEta_ll = new TH1D("deltaEta_ll", ";#Delta#eta(l_{1},l_{2});Events", 100, -10.0, 10.0);
-  TH2D *hDeltaEtaVsDeltaPhi_ll = new TH2D("deltaEta_vs_deltaPhi_ll", ";#Delta#eta(l_{1},l_{2});#Delta#phi(l_{1},l_{2})", 100, -10.0, 10.0, 64, -M_PI, M_PI);
-  TH2D *hDeltaEtaVsCosth_ll = new TH2D("deltaEta_vs_costh_ll", ";#Delta#eta(l_{1},l_{2});cos#theta_{CS}", 100, -10.0, 10.0, 50, -1., 1.);
-  TH2D *hDeltaEtaVsZPt_ll = new TH2D("deltaEta_vs_zPt_ll", ";#Delta#eta(l_{1},l_{2});p_{T}(Z) [GeV]", 100, -10.0, 10.0, zPtBins, 0., zPtMax);
-  TH2D *hDeltaEtaVsLeadPt_ll = new TH2D("deltaEta_vs_leadingPt_ll", ";#Delta#eta(l_{1},l_{2});p_{T}(leading l) [GeV]", 100, -10.0, 10.0, pt2dBins, 0., pt2dMax);
-  TH2D *hDeltaEtaVsSubleadPt_ll = new TH2D("deltaEta_vs_subleadingPt_ll", ";#Delta#eta(l_{1},l_{2});p_{T}(subleading l) [GeV]", 100, -10.0, 10.0, pt2dBins, 0., pt2dMax);
+  TH1D *hDeltaPhi_ll = new TH1D("deltaPhi_ll", ";|#Delta#phi(l_{1},l_{2})|;Events", 64, 0., M_PI);
+  TH1D *hDeltaEta_ll = new TH1D("deltaEta_ll", ";|#Delta#eta(l_{1},l_{2})|;Events", 100, 0.0, 10.0);
+  TH2D *hDeltaEtaVsDeltaPhi_ll = new TH2D("deltaEta_vs_deltaPhi_ll", ";|#Delta#eta(l_{1},l_{2})|;|#Delta#phi(l_{1},l_{2})|", 100, 0.0, 10.0, 64, 0., M_PI);
+  TH2D *hDeltaEtaVsCosth_ll = new TH2D("deltaEta_vs_costh_ll", ";|#Delta#eta(l_{1},l_{2})|;cos#theta_{CS}", 100, 0.0, 10.0, 50, -1., 1.);
+  TH2D *hDeltaEtaVsZPt_ll = new TH2D("deltaEta_vs_zPt_ll", ";|#Delta#eta(l_{1},l_{2})|;p_{T}(Z) [GeV]", 100, 0.0, 10.0, zPtBins, 0., zPtMax);
+  TH2D *hDeltaEtaVsLeadPt_ll = new TH2D("deltaEta_vs_leadingPt_ll", ";|#Delta#eta(l_{1},l_{2})|;p_{T}(leading l) [GeV]", 100, 0.0, 10.0, pt2dBins, 0., pt2dMax);
+  TH2D *hDeltaEtaVsSubleadPt_ll = new TH2D("deltaEta_vs_subleadingPt_ll", ";|#Delta#eta(l_{1},l_{2})|;p_{T}(subleading l) [GeV]", 100, 0.0, 10.0, pt2dBins, 0., pt2dMax);
  
   // cos opening anle between the two leptons in the lab frame, defined as the cosine of the angle between their three-momenta: cos(opening) = (p1 . p2) / (|p1| |p2|).
   // back-to-back leptons will have cos(opening) close to -1, while collinear leptons will have cos(opening) close to +1. 
@@ -277,7 +278,7 @@ void AIZ(bool isY=false){
   TH2D *hCosOpeningVsZPt_ll = new TH2D("cosOpeningAngle_vs_zPt_ll", ";p_{T}(Z) [GeV];cos(#alpha_{l_{1}l_{2}})", zPtBins, 0., zPtMax, 100, -1.0, 1.0);
   TH2D *hCosOpeningVsLeadPt_ll = new TH2D("cosOpeningAngle_vs_leadingPt_ll", ";p_{T}(leading l) [GeV];cos(#alpha_{l_{1}l_{2}})", pt2dBins, 0., pt2dMax, 100, -1.0, 1.0);
   TH2D *hCosOpeningVsSubleadPt_ll = new TH2D("cosOpeningAngle_vs_subleadingPt_ll", ";p_{T}(subleading l) [GeV];cos(#alpha_{l_{1}l_{2}})", pt2dBins, 0., pt2dMax, 100, -1.0, 1.0);
-  TH2D *hCosOpeningVsDeltaEta_ll = new TH2D("cosOpeningAngle_vs_deltaEta_ll", ";#Delta#eta(l_{1},l_{2});cos(#alpha_{l_{1}l_{2}})", 100, -10.0, 10.0, 100, -1.0, 1.0);
+  TH2D *hCosOpeningVsDeltaEta_ll = new TH2D("cosOpeningAngle_vs_deltaEta_ll", ";|#Delta#eta(l_{1},l_{2})|;cos(#alpha_{l_{1}l_{2}})", 100, 0.0, 10.0, 100, -1.0, 1.0);
 
   // cosTheta slices in pT bins (GeV) for each lepton
   TH1D *hCosLneg0_5   = new TH1D("cosThetaCSTruth_neg_pt_elto5",   "cosThetaCSTruth_neg_pt_elto5", 50, -1., 1.);
@@ -422,8 +423,8 @@ void AIZ(bool isY=false){
     hCosthVsPt_subleading->Fill(pt_subleading, costheta, weight);
 
     // Pairwise angular observables between the two leptons.
-    const double dEta_ll = em.Eta() - ep.Eta();
-    const double dPhi_ll = atan2(sin(em.Phi() - ep.Phi()), cos(em.Phi() - ep.Phi()));
+    const double dEta_ll = fabs(em.Eta() - ep.Eta());
+    const double dPhi_ll = fabs(atan2(sin(em.Phi() - ep.Phi()), cos(em.Phi() - ep.Phi())));
     const double dR_ll = sqrt(dEta_ll*dEta_ll + dPhi_ll*dPhi_ll);
     const double cosOpening_ll = em.Vect().Unit().Dot(ep.Vect().Unit());
 
@@ -443,6 +444,7 @@ void AIZ(bool isY=false){
 
     // Lepton-lepton eta/phi correlations
     hEta_ep_vs_em->Fill(ep.Eta(), em.Eta(), weight);
+    hEta_eleading_vs_esubleading->Fill(abs(eta_leading), abs(eta_subleading), weight);
     hPhi_ep_vs_em->Fill(ep.Phi(), em.Phi(), weight);
     hPt_ep_vs_em->Fill(pt_pos, pt_el, weight);
 
@@ -664,6 +666,7 @@ void AIZ(bool isY=false){
   hPhiVspt_el->Write();
   hPhiVspt_pos->Write();
   hEta_ep_vs_em->Write();
+  hEta_eleading_vs_esubleading->Write();
   hPhi_ep_vs_em->Write();
   hPt_ep_vs_em->Write();
   hZptVsEta_m->Write();

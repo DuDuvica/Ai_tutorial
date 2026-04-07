@@ -9,7 +9,9 @@
 #include <iostream>
 #include "TLorentzVector.h"
 #include "TVector3.h"
-#include <math.h>
+#include "TLVUtils.h"
+#include <cmath>
+#include <vector>
 // Draft Z version based on AIW.C (Collins-Soper angles, A0-A7)
 using namespace std;
 
@@ -311,23 +313,20 @@ void AIZ(bool isY=false){
       tree->SetBranchAddress("lepID0", &lepID0);
       tree->SetBranchAddress("lepID1", &lepID1);
   }
-  TLorentzVector em, ep, z, delta;
-  TVector3 pem, pep, pz, rt, pa(0,0,1), deltat, qttrans;
+  TLorentzVector em, ep, z;
+
+  // Beam energy per proton at 13 TeV collision energy.
+  // This value must be in the same units as the lepton four-vectors (GeV).
+  const double ebeamGeV = 6500.0;
 
   for (Long64_t i = 0; i < N; i++) {
 
     tree->GetEntry(i);
-    // intialize four-vectors to avoid carrying over values from previous events in case of early continue statements
+    // Initialize four-vectors to avoid carrying over values from previous events
+    // in case of early continue statements.
       em.SetPtEtaPhiM(0, 0, 0, 0);
       ep.SetPtEtaPhiM(0, 0, 0, 0);
       z.SetPtEtaPhiM(0, 0, 0, 0);
-      delta.SetPtEtaPhiM(0, 0, 0, 0);
-      pem.SetXYZ(0, 0, 0);
-      pep.SetXYZ(0, 0, 0);
-      pz.SetXYZ(0, 0, 0);
-      rt.SetXYZ(0, 0, 0);
-      deltat.SetXYZ(0, 0, 0);
-      qttrans.SetXYZ(0, 0, 0);
     const int id0 = lround(lepID0);
     const int id1 = lround(lepID1);
 
@@ -338,11 +337,9 @@ void AIZ(bool isY=false){
     }
 
     
-    // Angles are defined w.r.t. the negative lepton (em). Charge is taken from lepID{0,1} per event.
-    // z-axis: direction of positive longitudinal Z momentum in lab (sign of Z rapidity).
-    // y-axis: normal to the plane spanned by incoming proton momenta (beam axis) and Z momentum.
-    // x-axis: completes a right-handed system.
-    // Note: when pT(Z) == 0, phi is undefined; we keep events (phi will be arbitrary).
+    // We build em = e- and ep = e+ explicitly for each event so that downstream
+    // angular definitions are unambiguous. In particular, TLVUtils::getCSFAngles
+    // expects the first lepton argument to be associated with charge1.
      double pt_el = 0 ;
      double pt_pos = 0 ;
     //  e−  == 11 e+ == -11 
@@ -381,24 +378,25 @@ void AIZ(bool isY=false){
     }
     ZMass->Fill(z.M(), mcEventWeight);
 
-    delta = em - ep;
-    deltat = delta.Vect();
-    deltat.SetZ(0);
-
     if (i%10000 == 0) {
       cout << "Processed " << i <<"/" << N << " events" << endl;
       cout << " Z pT is: " << z.Pt() << " Z rapidity is: " << z.Rapidity() << endl;
       cout << " lepton 1 (neg) pT: " << em.Pt() << " eta: " << em.Eta() << " phi: " << em.Phi() << endl;
       cout << " Event weight: " << mcEventWeight << endl;
     }
-    double lpe  = em.E()+em.Pz();
-    double lme  = em.E()-em.Pz();
-    double lpeplus = ep.E()+ep.Pz();
-    double lmeplus = ep.E()-ep.Pz();
 
-    double costheta = (1./z.M())*pow((z.M2()+pow(z.Pt(),2)),-0.5)*(lpeplus*lme - lmeplus*lpe);
-    costheta *= z.Rapidity()>=0. ? 1:-1;
-    if (costheta!=costheta) continue;
+    // Use the exact Collins-Soper implementation from TLVUtils so AIZ and
+    // helper-library conventions remain identical:
+    //  - same sign conventions for cos(theta)
+    //  - same charge handling (first lepton carries charge1)
+    //  - same boosted-frame construction for phi
+    // We pass em (negative lepton) as lep1 with charge1 = -1 and ep as lep2.
+    double costheta = 0.0;
+    double phi = 0.0;
+    TLVUtils::getCSFAngles(em, -1, ep, ebeamGeV, costheta, phi);
+
+    // Guard against non-finite outputs before filling histograms.
+    if (!std::isfinite(costheta) || !std::isfinite(phi)) continue;
 
     double weight = 1.0;
     if (normXS) weight = mcEventWeight; //weight *= norm;
@@ -407,31 +405,6 @@ void AIZ(bool isY=false){
     hctheta->Fill(costheta, weight);
     hctheta_truth->Fill(cosThetaCSTruth, weight);
     hphi_truth->Fill(phiCSTruth, weight);
-
-    // Use the same charge-aware four-vectors for the Collins–Soper axes
-    pem = em.Vect();
-    pep = ep.Vect();
-    pz = pem + pep;
-
-    rt = pa.Cross(pz);
-    if (rt.Mag() != 0) rt = rt*(1./rt.Mag());
-    rt.SetZ(0);
-
-    qttrans = z.Vect();
-    qttrans.SetZ(0);
-    if (qttrans.Mag() != 0) qttrans = qttrans*(1./qttrans.Mag());
-
-    // For pT(Z)=0, phi is undefined; skip phi-dependent observables to avoid spikes at phi=0.
-    if (qttrans.Mag() == 0 || rt.Mag() == 0) {
-      continue;
-    }
-
-
-   double tanphi = (pow(z.M2()+pow(z.Pt(),2),0.5)/z.M())*(deltat*rt/(deltat*qttrans));
-    Double_t x =   pow((pow(z.M2()+pow(z.Pt(),2),0.5)/z.M()),-1)*(deltat*qttrans);
-    Double_t y = deltat*rt*(z.Rapidity()>=0. ? 1:-1);
-    Double_t phi = atan2(y,x);
-    
 
     hphi->Fill(phi, weight);
     hZptVsCostheta->Fill(z.Pt(), costheta, weight);
@@ -512,31 +485,49 @@ void AIZ(bool isY=false){
       Xsw->Fill(z.Pt(), weight);
     }
 
-    double sinth  =  sqrt(1-costheta*costheta);
-    double sin2th = 2*costheta*sinth;
-    double cosph  = cos(phi);
-    double cos2ph = 2*cos(phi)*cos(phi)-1.;
-    double sinph  = sqrt(max(0.,1.-cos(phi)*cos(phi)))*(phi>0?1:-1);
-    double sin2ph = 2*cos(phi)*sin(phi);
+    // Build the angular basis with TLVUtils so the polynomial definitions are
+    // exactly shared with the common utility implementation.
+    std::vector<double> aipols;
+    TLVUtils::getAiPolynoms(costheta, phi, aipols);
+
+    // Keep the historical AIZ histogram convention (scaled basis) for output
+    // compatibility. The raw TLVUtils basis terms are transformed as follows:
+    //   A0_scaled = 20/3 * p0 + 2/3
+    //   A1_scaled = 5    * p1
+    //   A2_scaled = 10   * p2
+    //   A3_scaled = 4    * p3
+    //   A4_scaled = 4    * p4
+    //   A5_scaled = 5    * p5
+    //   A6_scaled = 4    * p6
+    //   A7_scaled = 4    * p7
+    // where p{i} == aipols[i] returned by TLVUtils::getAiPolynoms.
+    const double a0Scaled = (20./3.) * aipols[0] + (2./3.);
+    const double a1Scaled = 5. * aipols[1];
+    const double a2Scaled = 10. * aipols[2];
+    const double a3Scaled = 4. * aipols[3];
+    const double a4Scaled = 4. * aipols[4];
+    const double a5Scaled = 5. * aipols[5];
+    const double a6Scaled = 4. * aipols[6];
+    const double a7Scaled = 4. * aipols[7];
 
     if(isY){
-      A0->Fill(fabs(z.Rapidity()), (20./3.*(0.5-1.5*costheta*costheta)+2./3.) * weight);
-      A1->Fill(fabs(z.Rapidity()), (5.*(2.*costheta*sinth*cosph)) * weight);
-      A2->Fill(fabs(z.Rapidity()), (10.*(sinth*sinth*cos2ph)) * weight);
-      A3->Fill(fabs(z.Rapidity()), (4.*(sinth*cosph)) * weight);
-      A4->Fill(fabs(z.Rapidity()), (4.*costheta) * weight);
-      A5->Fill(fabs(z.Rapidity()), (5.*(sinth*sinth*sin2ph)) * weight);
-      A6->Fill(fabs(z.Rapidity()), (4.*(sin2th*sinph)) * weight);
-      A7->Fill(fabs(z.Rapidity()), (4.*(sinth*sinph)) * weight);
+      A0->Fill(fabs(z.Rapidity()), a0Scaled * weight);
+      A1->Fill(fabs(z.Rapidity()), a1Scaled * weight);
+      A2->Fill(fabs(z.Rapidity()), a2Scaled * weight);
+      A3->Fill(fabs(z.Rapidity()), a3Scaled * weight);
+      A4->Fill(fabs(z.Rapidity()), a4Scaled * weight);
+      A5->Fill(fabs(z.Rapidity()), a5Scaled * weight);
+      A6->Fill(fabs(z.Rapidity()), a6Scaled * weight);
+      A7->Fill(fabs(z.Rapidity()), a7Scaled * weight);
     } else {
-      A0->Fill(z.Pt(), (20./3.*(0.5-1.5*costheta*costheta)+2./3.) * weight);
-      A1->Fill(z.Pt(), (5.*(2.*costheta*sinth*cosph)) * weight);
-      A2->Fill(z.Pt(), (10.*(sinth*sinth*cos2ph)) * weight);
-      A3->Fill(z.Pt(), (4.*(sinth*cosph)) * weight);
-      A4->Fill(z.Pt(), (4.*costheta) * weight);
-      A5->Fill(z.Pt(), (5.*(sinth*sinth*sin2ph)) * weight);
-      A6->Fill(z.Pt(), (4.*(sin2th*sinph)) * weight);
-      A7->Fill(z.Pt(), (4.*(sinth*sinph)) * weight);
+      A0->Fill(z.Pt(), a0Scaled * weight);
+      A1->Fill(z.Pt(), a1Scaled * weight);
+      A2->Fill(z.Pt(), a2Scaled * weight);
+      A3->Fill(z.Pt(), a3Scaled * weight);
+      A4->Fill(z.Pt(), a4Scaled * weight);
+      A5->Fill(z.Pt(), a5Scaled * weight);
+      A6->Fill(z.Pt(), a6Scaled * weight);
+      A7->Fill(z.Pt(), a7Scaled * weight);
     }
   }
 

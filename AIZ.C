@@ -239,6 +239,7 @@ void AIZ(bool isY=false){
   TH2D *hEta_eleading_vs_esubleading = new TH2D("eta_eleading_vs_esubleading", ";#eta(e_{leading});#eta(e_{subleading})", etaBins/2, 0, etaMax, etaBins/2, 0, etaMax);
   TH2D *hPhi_ep_vs_em = new TH2D("phi_ep_vs_em", ";#phi(e^{+});#phi(e^{-})", phiBins, phiMin, phiMax, phiBins, phiMin, phiMax);
   TH2D *hPt_ep_vs_em = new TH2D("pt_ep_vs_em", ";p_{T}(e^{+}) [GeV];p_{T}(e^{-}) [GeV]", pt2dBins, 0., pt2dMax, pt2dBins, 0., pt2dMax);
+  TH2D *hPt_leading_vs_subleading = new TH2D("pt_leading_vs_subleading", ";p_{T}(leading l) [GeV];p_{T}(subleading l) [GeV]", pt2dBins, 0., pt2dMax, pt2dBins, 0., pt2dMax);
 
   // Z–lepton correlations
   TH2D *hZptVsEta_m = new TH2D("zPt_vs_eta_m", ";p_{T}(Z) [GeV];#eta(e^{-})", zPtBins, 0., zPtMax, etaBins, etaMin, etaMax);
@@ -447,6 +448,7 @@ void AIZ(bool isY=false){
     hEta_eleading_vs_esubleading->Fill(abs(eta_leading), abs(eta_subleading), weight);
     hPhi_ep_vs_em->Fill(ep.Phi(), em.Phi(), weight);
     hPt_ep_vs_em->Fill(pt_pos, pt_el, weight);
+    hPt_leading_vs_subleading->Fill(pt_leading, pt_subleading, weight);
 
     // Z–lepton correlations
     hZptVsEta_m->Fill(z.Pt(), em.Eta(), weight);
@@ -669,6 +671,7 @@ void AIZ(bool isY=false){
   hEta_eleading_vs_esubleading->Write();
   hPhi_ep_vs_em->Write();
   hPt_ep_vs_em->Write();
+  hPt_leading_vs_subleading->Write();
   hZptVsEta_m->Write();
   hZptVsEta_p->Write();
   hZYVsPt_m->Write();

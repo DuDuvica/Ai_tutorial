@@ -21,11 +21,16 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   TH2D* hDEtaLead  = static_cast<TH2D*>(f->Get("deltaEta_vs_leadingPt_ll"));
   TH2D* hDEtaSub   = static_cast<TH2D*>(f->Get("deltaEta_vs_subleadingPt_ll"));
   TH2D* hDEtaCosth = static_cast<TH2D*>(f->Get("deltaEta_vs_costh_ll"));
+  TH2D* hPtEpVsEm  = static_cast<TH2D*>(f->Get("pt_ep_vs_em"));
+  TH2D* hPtLeadVsSublead = static_cast<TH2D*>(f->Get("pt_leading_vs_subleading"));
+  TH2D* hZptVsCostheta = static_cast<TH2D*>(f->Get("zPt_vs_costheta"));
+  TH2D* hZptVsPhi      = static_cast<TH2D*>(f->Get("zPt_vs_phi"));
 
-  if (!hCosthLead || !hCosthSub || !hDEtaLead || !hDEtaSub || !hDEtaCosth) {
+  if (!hCosthLead || !hCosthSub || !hDEtaLead || !hDEtaSub || !hDEtaCosth || !hPtEpVsEm || !hPtLeadVsSublead || !hZptVsCostheta || !hZptVsPhi) {
     std::cout << "ERROR: one or more required histograms are missing in " << inFile << std::endl;
     std::cout << "Needed: costh_vs_pt_leading, costh_vs_pt_subleading, "
-              << "deltaEta_vs_leadingPt_ll, deltaEta_vs_subleadingPt_ll, deltaEta_vs_costh_ll"
+              << "deltaEta_vs_leadingPt_ll, deltaEta_vs_subleadingPt_ll, deltaEta_vs_costh_ll, pt_ep_vs_em, pt_leading_vs_subleading, "
+              << "zPt_vs_costheta, zPt_vs_phi"
               << std::endl;
     f->Close();
     return;
@@ -284,6 +289,262 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     pDEtaSlice->Draw("hist");
   }
 
+  // 6) pt_ep_vs_em projections in pT bins.
+  // Project pT(e-) for bins of pT(e+) and vice versa.
+  TCanvas* cPtEpSlices = new TCanvas("c_projection_pT_em_in_pT_ep_slices", "p_{T}(e^{-}) projections in p_{T}(e^{+}) slices", 1400, 900);
+  cPtEpSlices->Divide(3, 2);
+
+  TCanvas* cPtEmSlices = new TCanvas("c_projection_pT_ep_in_pT_em_slices", "p_{T}(e^{+}) projections in p_{T}(e^{-}) slices", 1400, 900);
+  cPtEmSlices->Divide(3, 2);
+
+  for (int i = 0; i < nPtSlices; ++i) {
+    const double ptLo = ptEdgesLow[i];
+    const double ptHi = ptEdgesHigh[i];
+
+    // For pt_ep_vs_em: pT(e+) is X axis, pT(e-) is Y axis
+    // ProjectionY (pT of e-) for bins of pT(e+)
+    int xBinLoPt = hPtEpVsEm->GetXaxis()->FindBin(ptLo + 1e-6);
+    int xBinHiPt = (ptHi >= hPtEpVsEm->GetXaxis()->GetXmax())
+                     ? hPtEpVsEm->GetXaxis()->GetNbins()
+                     : hPtEpVsEm->GetXaxis()->FindBin(ptHi - 1e-6);
+    xBinLoPt = std::max(1, xBinLoPt);
+    xBinHiPt = std::max(xBinLoPt, std::min(hPtEpVsEm->GetXaxis()->GetNbins(), xBinHiPt));
+
+    TH1D* pPtEmSlice = hPtEpVsEm->ProjectionY(Form("pPt_em_epbin_%d", i), xBinLoPt, xBinHiPt);
+    if (pPtEmSlice->Integral() > 0) pPtEmSlice->Scale(1.0 / pPtEmSlice->Integral());
+    pPtEmSlice->SetLineColor(kViolet - 5);
+    pPtEmSlice->SetLineWidth(2);
+
+    cPtEpSlices->cd(i + 1);
+    pPtEmSlice->SetTitle(Form("%.0f < p_{T}(e^{+}) < %.0f GeV;p_{T}(e^{-}) [GeV];Normalized entries", ptLo, ptHi));
+    pPtEmSlice->Draw("hist");
+
+    // ProjectionX (pT of e+) for bins of pT(e-)
+    int yBinLoPt = hPtEpVsEm->GetYaxis()->FindBin(ptLo + 1e-6);
+    int yBinHiPt = (ptHi >= hPtEpVsEm->GetYaxis()->GetXmax())
+                     ? hPtEpVsEm->GetYaxis()->GetNbins()
+                     : hPtEpVsEm->GetYaxis()->FindBin(ptHi - 1e-6);
+    yBinLoPt = std::max(1, yBinLoPt);
+    yBinHiPt = std::max(yBinLoPt, std::min(hPtEpVsEm->GetYaxis()->GetNbins(), yBinHiPt));
+
+    TH1D* pPtEpSlice = hPtEpVsEm->ProjectionX(Form("pPt_ep_embin_%d", i), yBinLoPt, yBinHiPt);
+    if (pPtEpSlice->Integral() > 0) pPtEpSlice->Scale(1.0 / pPtEpSlice->Integral());
+    pPtEpSlice->SetLineColor(kCyan + 2);
+    pPtEpSlice->SetLineWidth(2);
+
+    cPtEmSlices->cd(i + 1);
+    pPtEpSlice->SetTitle(Form("%.0f < p_{T}(e^{-}) < %.0f GeV;p_{T}(e^{+}) [GeV];Normalized entries", ptLo, ptHi));
+    pPtEpSlice->Draw("hist");
+  }
+
+  // 7) pt_leading_vs_subleading projections in pT bins.
+  // Project pT(subleading) for bins of pT(leading) and vice versa.
+  TCanvas* cPtLeadSlices = new TCanvas("c_projection_pT_sublead_in_pT_lead_slices", "p_{T}(subleading) projections in p_{T}(leading) slices", 1400, 900);
+  cPtLeadSlices->Divide(3, 2);
+
+  TCanvas* cPtSubleadSlices = new TCanvas("c_projection_pT_lead_in_pT_sublead_slices", "p_{T}(leading) projections in p_{T}(subleading) slices", 1400, 900);
+  cPtSubleadSlices->Divide(3, 2);
+
+  for (int i = 0; i < nPtSlices; ++i) {
+    const double ptLo = ptEdgesLow[i];
+    const double ptHi = ptEdgesHigh[i];
+
+    // For pt_leading_vs_subleading: pT(leading) is X axis, pT(subleading) is Y axis
+    // ProjectionY (pT of subleading) for bins of pT(leading)
+    int xBinLoLead = hPtLeadVsSublead->GetXaxis()->FindBin(ptLo + 1e-6);
+    int xBinHiLead = (ptHi >= hPtLeadVsSublead->GetXaxis()->GetXmax())
+                       ? hPtLeadVsSublead->GetXaxis()->GetNbins()
+                       : hPtLeadVsSublead->GetXaxis()->FindBin(ptHi - 1e-6);
+    xBinLoLead = std::max(1, xBinLoLead);
+    xBinHiLead = std::max(xBinLoLead, std::min(hPtLeadVsSublead->GetXaxis()->GetNbins(), xBinHiLead));
+
+    TH1D* pPtSubleadSlice = hPtLeadVsSublead->ProjectionY(Form("pPt_sublead_leadbin_%d", i), xBinLoLead, xBinHiLead);
+    if (pPtSubleadSlice->Integral() > 0) pPtSubleadSlice->Scale(1.0 / pPtSubleadSlice->Integral());
+    pPtSubleadSlice->SetLineColor(kSpring + 5);
+    pPtSubleadSlice->SetLineWidth(2);
+
+    cPtLeadSlices->cd(i + 1);
+    pPtSubleadSlice->SetTitle(Form("%.0f < p_{T}(lead) < %.0f GeV;p_{T}(sublead) [GeV];Normalized entries", ptLo, ptHi));
+    pPtSubleadSlice->Draw("hist");
+
+    // ProjectionX (pT of leading) for bins of pT(subleading)
+    int yBinLoSublead = hPtLeadVsSublead->GetYaxis()->FindBin(ptLo + 1e-6);
+    int yBinHiSublead = (ptHi >= hPtLeadVsSublead->GetYaxis()->GetXmax())
+                         ? hPtLeadVsSublead->GetYaxis()->GetNbins()
+                         : hPtLeadVsSublead->GetYaxis()->FindBin(ptHi - 1e-6);
+    yBinLoSublead = std::max(1, yBinLoSublead);
+    yBinHiSublead = std::max(yBinLoSublead, std::min(hPtLeadVsSublead->GetYaxis()->GetNbins(), yBinHiSublead));
+
+    TH1D* pPtLeadSlice = hPtLeadVsSublead->ProjectionX(Form("pPt_lead_subleadbin_%d", i), yBinLoSublead, yBinHiSublead);
+    if (pPtLeadSlice->Integral() > 0) pPtLeadSlice->Scale(1.0 / pPtLeadSlice->Integral());
+    pPtLeadSlice->SetLineColor(kTeal + 2);
+    pPtLeadSlice->SetLineWidth(2);
+
+    cPtSubleadSlices->cd(i + 1);
+    pPtLeadSlice->SetTitle(Form("%.0f < p_{T}(sublead) < %.0f GeV;p_{T}(lead) [GeV];Normalized entries", ptLo, ptHi));
+    pPtLeadSlice->Draw("hist");
+  }
+  // 8) pt_ep_vs_em overlay: compare pT(e+) and pT(e-) distributions in pT bins with ratio panels.
+  TCanvas* cPtEpEmOverlay = new TCanvas("c_overlay_pT_ep_vs_em_in_pT_slices", "p_{T}(e^{+}) vs p_{T}(e^{-}) overlay in p_{T} slices", 1000, 1500);
+  cPtEpEmOverlay->Divide(2, 6);
+
+  for (int i = 0; i < nPtSlices; ++i) {
+    const double ptLo = ptEdgesLow[i];
+    const double ptHi = ptEdgesHigh[i];
+
+    // For pt_ep_vs_em: pT(e+) is X axis, pT(e-) is Y axis
+    // ProjectionY (pT of e-) for bins of pT(e+)
+    int xBinLoPt = hPtEpVsEm->GetXaxis()->FindBin(ptLo + 1e-6);
+    int xBinHiPt = (ptHi >= hPtEpVsEm->GetXaxis()->GetXmax())
+                     ? hPtEpVsEm->GetXaxis()->GetNbins()
+                     : hPtEpVsEm->GetXaxis()->FindBin(ptHi - 1e-6);
+    xBinLoPt = std::max(1, xBinLoPt);
+    xBinHiPt = std::max(xBinLoPt, std::min(hPtEpVsEm->GetXaxis()->GetNbins(), xBinHiPt));
+
+    TH1D* pPtEmSliceOvl = hPtEpVsEm->ProjectionY(Form("pPt_em_epbin_ovl_%d", i), xBinLoPt, xBinHiPt);
+    if (pPtEmSliceOvl->Integral() > 0) pPtEmSliceOvl->Scale(1.0 / pPtEmSliceOvl->Integral());
+    pPtEmSliceOvl->SetLineColor(kViolet - 5);
+    pPtEmSliceOvl->SetLineWidth(2);
+
+    // ProjectionX (pT of e+) for bins of pT(e-)
+    int yBinLoPt = hPtEpVsEm->GetYaxis()->FindBin(ptLo + 1e-6);
+    int yBinHiPt = (ptHi >= hPtEpVsEm->GetYaxis()->GetXmax())
+                     ? hPtEpVsEm->GetYaxis()->GetNbins()
+                     : hPtEpVsEm->GetYaxis()->FindBin(ptHi - 1e-6);
+    yBinLoPt = std::max(1, yBinLoPt);
+    yBinHiPt = std::max(yBinLoPt, std::min(hPtEpVsEm->GetYaxis()->GetNbins(), yBinHiPt));
+
+    TH1D* pPtEpSliceOvl = hPtEpVsEm->ProjectionX(Form("pPt_ep_embin_ovl_%d", i), yBinLoPt, yBinHiPt);
+    if (pPtEpSliceOvl->Integral() > 0) pPtEpSliceOvl->Scale(1.0 / pPtEpSliceOvl->Integral());
+    pPtEpSliceOvl->SetLineColor(kCyan + 2);
+    pPtEpSliceOvl->SetLineWidth(2);
+    pPtEpSliceOvl->SetLineStyle(2);
+
+    // Top pad: overlay distributions
+    cPtEpEmOverlay->cd(2*i + 1);
+    pPtEmSliceOvl->SetTitle(Form("%.0f < p_{T} < %.0f GeV;p_{T} [GeV];Normalized entries", ptLo, ptHi));
+    pPtEmSliceOvl->Draw("hist");
+    pPtEpSliceOvl->Draw("hist same");
+    
+    TLegend* legPtOverlay = new TLegend(0.48, 0.74, 0.88, 0.88);
+    legPtOverlay->AddEntry(pPtEmSliceOvl, "p_{T}(e^{-}) from e^{+} bin", "l");
+    legPtOverlay->AddEntry(pPtEpSliceOvl, "p_{T}(e^{+}) from e^{-} bin", "l");
+    legPtOverlay->Draw();
+    
+    // Bottom pad: ratio
+    cPtEpEmOverlay->cd(2*i + 2);
+    TH1D* rPtOverlay = static_cast<TH1D*>(pPtEmSliceOvl->Clone(Form("ratio_pt_em_over_ep_%d", i)));
+    rPtOverlay->SetTitle(";p_{T} [GeV];p_{T}(e^{-}) / p_{T}(e^{+})");
+    rPtOverlay->Divide(pPtEpSliceOvl);
+    rPtOverlay->SetLineColor(kBlack);
+    rPtOverlay->SetMarkerColor(kBlack);
+    rPtOverlay->SetMarkerStyle(20);
+    rPtOverlay->SetMarkerSize(0.6);
+    rPtOverlay->GetYaxis()->SetRangeUser(0.5, 1.5);
+    rPtOverlay->GetYaxis()->SetTitleSize(0.10);
+    rPtOverlay->GetYaxis()->SetLabelSize(0.09);
+    rPtOverlay->GetYaxis()->SetTitleOffset(0.45);
+    rPtOverlay->GetXaxis()->SetTitleSize(0.10);
+    rPtOverlay->GetXaxis()->SetLabelSize(0.09);
+    rPtOverlay->Draw("ep");
+  }
+
+  // 9) pt_leading_vs_subleading overlay: compare pT(leading) and pT(subleading) distributions in pT bins.
+  TCanvas* cPtLeadSubleadOverlay = new TCanvas("c_overlay_pT_lead_vs_sublead_in_pT_slices", "p_{T}(leading) vs p_{T}(subleading) overlay in p_{T} slices", 1400, 900);
+  cPtLeadSubleadOverlay->Divide(3, 2);
+
+  for (int i = 0; i < nPtSlices; ++i) {
+    const double ptLo = ptEdgesLow[i];
+    const double ptHi = ptEdgesHigh[i];
+
+    // For pt_leading_vs_subleading: pT(leading) is X axis, pT(subleading) is Y axis
+    // ProjectionY (pT of subleading) for bins of pT(leading)
+    int xBinLoLead = hPtLeadVsSublead->GetXaxis()->FindBin(ptLo + 1e-6);
+    int xBinHiLead = (ptHi >= hPtLeadVsSublead->GetXaxis()->GetXmax())
+                       ? hPtLeadVsSublead->GetXaxis()->GetNbins()
+                       : hPtLeadVsSublead->GetXaxis()->FindBin(ptHi - 1e-6);
+    xBinLoLead = std::max(1, xBinLoLead);
+    xBinHiLead = std::max(xBinLoLead, std::min(hPtLeadVsSublead->GetXaxis()->GetNbins(), xBinHiLead));
+
+    TH1D* pPtSubleadOvl = hPtLeadVsSublead->ProjectionY(Form("pPt_sublead_leadbin_ovl_%d", i), xBinLoLead, xBinHiLead);
+    if (pPtSubleadOvl->Integral() > 0) pPtSubleadOvl->Scale(1.0 / pPtSubleadOvl->Integral());
+    pPtSubleadOvl->SetLineColor(kSpring + 5);
+    pPtSubleadOvl->SetLineWidth(2);
+
+    // ProjectionX (pT of leading) for bins of pT(subleading)
+    int yBinLoSublead = hPtLeadVsSublead->GetYaxis()->FindBin(ptLo + 1e-6);
+    int yBinHiSublead = (ptHi >= hPtLeadVsSublead->GetYaxis()->GetXmax())
+                         ? hPtLeadVsSublead->GetYaxis()->GetNbins()
+                         : hPtLeadVsSublead->GetYaxis()->FindBin(ptHi - 1e-6);
+    yBinLoSublead = std::max(1, yBinLoSublead);
+    yBinHiSublead = std::max(yBinLoSublead, std::min(hPtLeadVsSublead->GetYaxis()->GetNbins(), yBinHiSublead));
+
+    TH1D* pPtLeadOvl = hPtLeadVsSublead->ProjectionX(Form("pPt_lead_subleadbin_ovl_%d", i), yBinLoSublead, yBinHiSublead);
+    if (pPtLeadOvl->Integral() > 0) pPtLeadOvl->Scale(1.0 / pPtLeadOvl->Integral());
+    pPtLeadOvl->SetLineColor(kTeal + 2);
+    pPtLeadOvl->SetLineWidth(2);
+    //pPtLeadOvl->SetLineStyle(2);
+
+    cPtLeadSubleadOverlay->cd(i + 1);
+    pPtSubleadOvl->SetTitle(Form("%.0f < p_{T} < %.0f GeV;p_{T} [GeV];Normalized entries", ptLo, ptHi));
+    pPtSubleadOvl->Draw("hist");
+    pPtLeadOvl->Draw("hist same");
+    
+    TLegend* legPtLeadSublead = new TLegend(0.48, 0.74, 0.88, 0.88);
+    legPtLeadSublead->AddEntry(pPtSubleadOvl, "p_{T}(sublead) from lead bin", "l");
+    legPtLeadSublead->AddEntry(pPtLeadOvl, "p_{T}(lead) from sublead bin", "l");
+    legPtLeadSublead->Draw();
+  }
+
+  // 10) zPt_vs_costheta and zPt_vs_phi projections in pT(Z) bins.
+  // Requested bins: 0-5, 5-10, 10-15, 15-35, 35-55, 55-80, 80-2000 GeV.
+  const int nPtZSlices = 7;
+  const double ptZLow[nPtZSlices]  = {0., 5., 10., 15., 35., 55., 80.};
+  const double ptZHigh[nPtZSlices] = {5., 10., 15., 35., 55., 80., 2000.};
+
+  TCanvas* cZCosthPtSlices = new TCanvas("c_projection_costheta_in_zpt_slices", "cos#theta_{CS} in p_{T}(Z) slices", 1600, 900);
+  cZCosthPtSlices->Divide(4, 2);
+
+  TCanvas* cZPhiPtSlices = new TCanvas("c_projection_phi_in_zpt_slices", "#phi_{CS} in p_{T}(Z) slices", 1600, 900);
+  cZPhiPtSlices->Divide(4, 2);
+
+  for (int i = 0; i < nPtZSlices; ++i) {
+    const double ptLo = ptZLow[i];
+    const double ptHi = ptZHigh[i];
+
+    int xBinLoZCosth = hZptVsCostheta->GetXaxis()->FindBin(ptLo + 1e-6);
+    int xBinHiZCosth = (ptHi >= hZptVsCostheta->GetXaxis()->GetXmax())
+                         ? hZptVsCostheta->GetXaxis()->GetNbins()
+                         : hZptVsCostheta->GetXaxis()->FindBin(ptHi - 1e-6);
+    xBinLoZCosth = std::max(1, xBinLoZCosth);
+    xBinHiZCosth = std::max(xBinLoZCosth, std::min(hZptVsCostheta->GetXaxis()->GetNbins(), xBinHiZCosth));
+
+    TH1D* pCosthInZPt = hZptVsCostheta->ProjectionY(Form("pCostheta_zptbin_%d", i), xBinLoZCosth, xBinHiZCosth);
+    if (pCosthInZPt->Integral() > 0) pCosthInZPt->Scale(1.0 / pCosthInZPt->Integral());
+    pCosthInZPt->SetLineColor(kBlue + 1);
+    pCosthInZPt->SetLineWidth(2);
+
+    cZCosthPtSlices->cd(i + 1);
+    pCosthInZPt->SetTitle(Form("%.0f < p_{T}(Z) < %.0f GeV;cos#theta_{CS};Normalized entries", ptLo, ptHi));
+    pCosthInZPt->Draw("hist");
+
+    int xBinLoZPhi = hZptVsPhi->GetXaxis()->FindBin(ptLo + 1e-6);
+    int xBinHiZPhi = (ptHi >= hZptVsPhi->GetXaxis()->GetXmax())
+                       ? hZptVsPhi->GetXaxis()->GetNbins()
+                       : hZptVsPhi->GetXaxis()->FindBin(ptHi - 1e-6);
+    xBinLoZPhi = std::max(1, xBinLoZPhi);
+    xBinHiZPhi = std::max(xBinLoZPhi, std::min(hZptVsPhi->GetXaxis()->GetNbins(), xBinHiZPhi));
+
+    TH1D* pPhiInZPt = hZptVsPhi->ProjectionY(Form("pPhi_zptbin_%d", i), xBinLoZPhi, xBinHiZPhi);
+    if (pPhiInZPt->Integral() > 0) pPhiInZPt->Scale(1.0 / pPhiInZPt->Integral());
+    pPhiInZPt->SetLineColor(kRed + 1);
+    pPhiInZPt->SetLineWidth(2);
+
+    cZPhiPtSlices->cd(i + 1);
+    pPhiInZPt->SetTitle(Form("%.0f < p_{T}(Z) < %.0f GeV;#phi_{CS};Normalized entries", ptLo, ptHi));
+    pPhiInZPt->Draw("hist");
+  }
+
   // Save comparison plots next to the input file for quick checks.
   cCosth->SaveAs("compare_projection_costh_lead_vs_sublead.pdf");
   cDEtaPt->SaveAs("compare_projection_deltaeta_lead_vs_sublead.pdf");
@@ -292,6 +553,14 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   cDEtaPtSlices->SaveAs("compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf");
   cCosthInDEtaSlices->SaveAs("compare_projectionY_costh_in_deltaeta_slices.pdf");
   cDEtaInCosthSlices->SaveAs("compare_projectionX_deltaeta_in_costh_slices.pdf");
+  cPtEpSlices->SaveAs("compare_projection_pT_em_in_pT_ep_slices.pdf");
+  cPtEmSlices->SaveAs("compare_projection_pT_ep_in_pT_em_slices.pdf");
+  cPtLeadSlices->SaveAs("compare_projection_pT_sublead_in_pT_lead_slices.pdf");
+  cPtSubleadSlices->SaveAs("compare_projection_pT_lead_in_pT_sublead_slices.pdf");
+  cPtEpEmOverlay->SaveAs("compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf");
+  cPtLeadSubleadOverlay->SaveAs("compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf");
+  cZCosthPtSlices->SaveAs("compare_projection_costheta_in_pTZ_slices.pdf");
+  cZPhiPtSlices->SaveAs("compare_projection_phi_in_pTZ_slices.pdf");
 
   std::cout << "Saved plots:" << std::endl;
   std::cout << "  compare_projection_costh_lead_vs_sublead.pdf" << std::endl;
@@ -301,6 +570,14 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   std::cout << "  compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf" << std::endl;
   std::cout << "  compare_projectionY_costh_in_deltaeta_slices.pdf" << std::endl;
   std::cout << "  compare_projectionX_deltaeta_in_costh_slices.pdf" << std::endl;
+  std::cout << "  compare_projection_pT_em_in_pT_ep_slices.pdf" << std::endl;
+  std::cout << "  compare_projection_pT_ep_in_pT_em_slices.pdf" << std::endl;
+  std::cout << "  compare_projection_pT_sublead_in_pT_lead_slices.pdf" << std::endl;
+  std::cout << "  compare_projection_pT_lead_in_pT_sublead_slices.pdf" << std::endl;
+  std::cout << "  compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf" << std::endl;
+  std::cout << "  compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf" << std::endl;
+  std::cout << "  compare_projection_costheta_in_pTZ_slices.pdf" << std::endl;
+  std::cout << "  compare_projection_phi_in_pTZ_slices.pdf" << std::endl;
 
   //f->Close();
 }

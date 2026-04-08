@@ -60,12 +60,16 @@ Impact: not guaranteed to be numerically identical event-by-event. Can induce si
 
 ---
 
-### 4) Event handling difference for `pT(Z)=0`
+### 4) Edge-case handling near `pT(Z)=0` / `Pz(Z)=0`
 
-AIZ skips events when `qttrans.Mag()==0 || rt.Mag()==0`.
-TLVUtils does not impose this event-level skip in `getCSFAngles`/`getAiPolynoms`.
+After alignment, AIZ no longer applies a dedicated `pT(Z)=0` veto in its own code path.
+AIZ now calls `TLVUtils::getCSFAngles`/`getAiPolynoms` directly, so the event treatment follows TLVUtils.
 
-Impact: AIZ drops events entirely (including contributions to A0/A4) where TLVUtils-style workflow may still keep them.
+Residual edge difference:
+- TLVUtils `costh` uses a division by `boson.Pz()`.
+- AIZ applies a finite-value guard after the TLVUtils call and skips events with non-finite outputs.
+
+Impact: no explicit `pT(Z)=0` event-drop policy difference remains; a tiny acceptance difference may persist only for pathological/near-singular `Pz(Z) ~ 0` events that produce non-finite values.
 
 ---
 
@@ -138,7 +142,7 @@ costheta = std::max(-1.0, std::min(1.0, costheta));
 - Option A (TLVUtils raw): store `aipols[i]` directly.
 - Option B (current AIZ scaled): apply the scaling factors after `getAiPolynoms` and keep existing plot conventions.
 
-8. Align `pT(Z)=0` behavior with TLVUtils policy (do not skip whole event unless explicitly intended).
+8. Keep edge-event policy documented: no explicit `pT(Z)=0` veto, but retain/define handling for non-finite outputs near `Pz(Z) ~ 0`.
 
 ## Practical patch order
 
@@ -152,4 +156,4 @@ costheta = std::max(-1.0, std::min(1.0, costheta));
 
 After steps 1-3, AIZ and TLVUtils should match at the level of angular definitions. Remaining differences should then only come from:
 - chosen polynomial normalization convention (raw vs scaled), and
-- event selection policy (especially handling of `pT(Z)=0` / `Pz(Z)=0`).
+- edge-case policy for non-finite outputs near `Pz(Z) ~ 0`.

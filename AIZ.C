@@ -17,7 +17,7 @@ using namespace std;
 
 bool sherpa = false;
 bool test = false; // set to true for quick test with limited events; set to false for full run
-bool override = true;
+bool override = false; // set to true to overwrite existing output file without prompt
 bool normXS = true;
 bool ifTrueOnly=true;
 
@@ -248,6 +248,8 @@ void AIZ(bool isY=false){
   TH2D *hZYVsPt_p   = new TH2D("zY_vs_pt_p",   ";y(Z);p_{T}(e^{+}) [GeV]", zYBins, zYMin, zYMax, pt2dBins, 0., pt2dMax);
   TH2D *hZptVsCostheta = new TH2D("zPt_vs_costheta", ";p_{T}(Z) [GeV];cos#theta_{CS}", zPtBins, 0., zPtMax, 50, -1., 1.);
   TH2D *hZptVsPhi = new TH2D("zPt_vs_phi", ";p_{T}(Z) [GeV];#phi_{CS}", zPtBins, 0., zPtMax, phiBins, phiMin, phiMax);
+  TH2D *hZYVsCostheta = new TH2D("zY_vs_costheta", ";y(Z);cos#theta_{CS}", zYBins, zYMin, zYMax, 50, -1., 1.);
+  TH2D *hZYVsPhi = new TH2D("zY_vs_phi", ";y(Z);#phi_{CS}", zYBins, zYMin, zYMax, phiBins, phiMin, phiMax);
 
   // Leading and subleading lepton distributions
   TH2D *hEtaVsPt_leading = new TH2D("eta_vs_pt_leading", ";p_{T}(lead) [GeV];#eta(lead)", pt2dBins, 0., pt2dMax, etaBins, etaMin, etaMax);
@@ -267,6 +269,7 @@ void AIZ(bool isY=false){
   TH2D *hDeltaEtaVsDeltaPhi_ll = new TH2D("deltaEta_vs_deltaPhi_ll", ";|#Delta#eta(l_{1},l_{2})|;|#Delta#phi(l_{1},l_{2})|", 100, 0.0, 10.0, 64, 0., M_PI);
   TH2D *hDeltaEtaVsCosth_ll = new TH2D("deltaEta_vs_costh_ll", ";|#Delta#eta(l_{1},l_{2})|;cos#theta_{CS}", 100, 0.0, 10.0, 50, -1., 1.);
   TH2D *hDeltaEtaVsZPt_ll = new TH2D("deltaEta_vs_zPt_ll", ";|#Delta#eta(l_{1},l_{2})|;p_{T}(Z) [GeV]", 100, 0.0, 10.0, zPtBins, 0., zPtMax);
+  TH2D *hDeltaEtaVsZY_ll = new TH2D("deltaEta_vs_zY_ll", ";|#Delta#eta(l_{1},l_{2})|;y(Z)", 100, 0.0, 10.0, zYBins, zYMin, zYMax);
   TH2D *hDeltaEtaVsLeadPt_ll = new TH2D("deltaEta_vs_leadingPt_ll", ";|#Delta#eta(l_{1},l_{2})|;p_{T}(leading l) [GeV]", 100, 0.0, 10.0, pt2dBins, 0., pt2dMax);
   TH2D *hDeltaEtaVsSubleadPt_ll = new TH2D("deltaEta_vs_subleadingPt_ll", ";|#Delta#eta(l_{1},l_{2})|;p_{T}(subleading l) [GeV]", 100, 0.0, 10.0, pt2dBins, 0., pt2dMax);
  
@@ -411,6 +414,8 @@ void AIZ(bool isY=false){
     hphi->Fill(phi, weight);
     hZptVsCostheta->Fill(z.Pt(), costheta, weight);
     hZptVsPhi->Fill(z.Pt(), phi, weight);
+    hZYVsCostheta->Fill(z.Rapidity(), costheta, weight);
+    hZYVsPhi->Fill(z.Rapidity(), phi, weight);
 
     // Determine leading and subleading leptons
     double pt_leading = (pt_el > pt_pos) ? pt_el : pt_pos;
@@ -435,6 +440,7 @@ void AIZ(bool isY=false){
     hDeltaEtaVsDeltaPhi_ll->Fill(dEta_ll, dPhi_ll, weight);
     hDeltaEtaVsCosth_ll->Fill(dEta_ll, costheta, weight);
     hDeltaEtaVsZPt_ll->Fill(dEta_ll, z.Pt(), weight);
+    hDeltaEtaVsZY_ll->Fill(dEta_ll, z.Rapidity(), weight);
     hDeltaEtaVsLeadPt_ll->Fill(dEta_ll, pt_leading, weight);
     hDeltaEtaVsSubleadPt_ll->Fill(dEta_ll, pt_subleading, weight);
     hCosOpening_ll->Fill(cosOpening_ll, weight);
@@ -686,6 +692,8 @@ void AIZ(bool isY=false){
   hCosLpos40_80->Write();
   hZptVsCostheta->Write();
   hZptVsPhi->Write();
+  hZYVsCostheta->Write();
+  hZYVsPhi->Write();
   hEtaVsPt_leading->Write();
   hEtaVsPt_subleading->Write();
   hCosthVsPt_leading->Write();
@@ -696,6 +704,7 @@ void AIZ(bool isY=false){
   hDeltaEtaVsDeltaPhi_ll->Write();
   hDeltaEtaVsCosth_ll->Write();
   hDeltaEtaVsZPt_ll->Write();
+  hDeltaEtaVsZY_ll->Write();
   hDeltaEtaVsLeadPt_ll->Write();
   hDeltaEtaVsSubleadPt_ll->Write();
   hCosOpening_ll->Write();

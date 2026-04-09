@@ -16,8 +16,18 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     std::cout << "ERROR: cannot open file " << inFile << std::endl;
     return;
   }
+  bool isFiducial = false;
+ bool EtaOnly = false;
 
-  std::cout << "Comparing projections from " << inFile << " with isY = " << isY << std::endl;
+  if ( inFile.Contains("Fiducial") ) {
+    isFiducial = true;
+    EtaOnly = inFile.Contains("EtaOnly");
+    std::cout << "Comparing projections from " << inFile << " with fiducial cuts applied. ETA only  " << EtaOnly << std::endl;
+   } else {
+    isFiducial = false;
+  }
+  
+    std::cout << "Comparing projections from " << inFile << " with isY = " << isY <<  " Is Fiducial: " << isFiducial << std::endl;
 
   TH2D* hCosthLead = static_cast<TH2D*>(f->Get("costh_vs_pt_leading"));
   TH2D* hCosthSub  = static_cast<TH2D*>(f->Get("costh_vs_pt_subleading"));
@@ -717,46 +727,51 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   }
 
   // Save comparison plots next to the input file for quick checks.
-  cCosth->SaveAs("compare_projection_costh_lead_vs_sublead.pdf");
-  cDEtaPt->SaveAs("compare_projection_deltaeta_lead_vs_sublead.pdf");
-  cDEtaCosth->SaveAs("compare_projection_deltaeta_vs_costh.pdf");
-  cCosthPtSlices->SaveAs("compare_projection_costh_pt_slices_lead_vs_sublead.pdf");
-  cDEtaPtSlices->SaveAs("compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf");
-  cCosthInDEtaSlices->SaveAs("compare_projectionY_costh_in_deltaeta_slices.pdf");
-  cDEtaInCosthSlices->SaveAs("compare_projectionX_deltaeta_in_costh_slices.pdf");
-  cPtEpSlices->SaveAs("compare_projection_pT_em_in_pT_ep_slices.pdf");
-  cPtEmSlices->SaveAs("compare_projection_pT_ep_in_pT_em_slices.pdf");
-  cPtLeadSlices->SaveAs("compare_projection_pT_sublead_in_pT_lead_slices.pdf");
-  cPtSubleadSlices->SaveAs("compare_projection_pT_lead_in_pT_sublead_slices.pdf");
-  cPtEpEmOverlay->SaveAs("compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf");
-  cPtLeadSubleadOverlay->SaveAs("compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf");
-  cBosonCosthSlices->SaveAs(isY ? "compare_projection_costheta_in_yZ_slices.pdf" : "compare_projection_costheta_in_pTZ_slices.pdf");
-  cBosonPhiSlices->SaveAs(isY ? "compare_projection_phi_in_yZ_slices.pdf" : "compare_projection_phi_in_pTZ_slices.pdf");
-  cBosonObsMSlices->SaveAs(isY ? "compare_projection_pT_m_in_yZ_slices.pdf" : "compare_projection_eta_m_in_pTZ_slices.pdf");
-  cBosonObsPSlices->SaveAs(isY ? "compare_projection_pT_p_in_yZ_slices.pdf" : "compare_projection_eta_p_in_pTZ_slices.pdf");
-  cDEtaInBosonSlices->SaveAs(isY ? "compare_projection_deltaeta_in_yZ_slices.pdf" : "compare_projection_deltaeta_in_pTZ_slices.pdf");
-  cDEtaBosonOverlay->SaveAs(isY ? "compare_projection_overlay_deltaeta_in_yZ_slices.pdf" : "compare_projection_overlay_deltaeta_in_pTZ_slices.pdf");
+  TString outPrefix;
+  if (isFiducial) outPrefix += "fiducial_";
+  if (EtaOnly) outPrefix += "etaonly_";
+  auto prefixed = [&](const char* name) { return outPrefix + name; };
+
+  cCosth->SaveAs(prefixed("compare_projection_costh_lead_vs_sublead.pdf").Data());
+  cDEtaPt->SaveAs(prefixed("compare_projection_deltaeta_lead_vs_sublead.pdf").Data());
+  cDEtaCosth->SaveAs(prefixed("compare_projection_deltaeta_vs_costh.pdf").Data());
+  cCosthPtSlices->SaveAs(prefixed("compare_projection_costh_pt_slices_lead_vs_sublead.pdf").Data());
+  cDEtaPtSlices->SaveAs(prefixed("compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf").Data());
+  cCosthInDEtaSlices->SaveAs(prefixed("compare_projectionY_costh_in_deltaeta_slices.pdf").Data());
+  cDEtaInCosthSlices->SaveAs(prefixed("compare_projectionX_deltaeta_in_costh_slices.pdf").Data());
+  cPtEpSlices->SaveAs(prefixed("compare_projection_pT_em_in_pT_ep_slices.pdf").Data());
+  cPtEmSlices->SaveAs(prefixed("compare_projection_pT_ep_in_pT_em_slices.pdf").Data());
+  cPtLeadSlices->SaveAs(prefixed("compare_projection_pT_sublead_in_pT_lead_slices.pdf").Data());
+  cPtSubleadSlices->SaveAs(prefixed("compare_projection_pT_lead_in_pT_sublead_slices.pdf").Data());
+  cPtEpEmOverlay->SaveAs(prefixed("compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf").Data());
+  cPtLeadSubleadOverlay->SaveAs(prefixed("compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf").Data());
+  cBosonCosthSlices->SaveAs(prefixed(isY ? "compare_projection_costheta_in_yZ_slices.pdf" : "compare_projection_costheta_in_pTZ_slices.pdf").Data());
+  cBosonPhiSlices->SaveAs(prefixed(isY ? "compare_projection_phi_in_yZ_slices.pdf" : "compare_projection_phi_in_pTZ_slices.pdf").Data());
+  cBosonObsMSlices->SaveAs(prefixed(isY ? "compare_projection_pT_m_in_yZ_slices.pdf" : "compare_projection_eta_m_in_pTZ_slices.pdf").Data());
+  cBosonObsPSlices->SaveAs(prefixed(isY ? "compare_projection_pT_p_in_yZ_slices.pdf" : "compare_projection_eta_p_in_pTZ_slices.pdf").Data());
+  cDEtaInBosonSlices->SaveAs(prefixed(isY ? "compare_projection_deltaeta_in_yZ_slices.pdf" : "compare_projection_deltaeta_in_pTZ_slices.pdf").Data());
+  cDEtaBosonOverlay->SaveAs(prefixed(isY ? "compare_projection_overlay_deltaeta_in_yZ_slices.pdf" : "compare_projection_overlay_deltaeta_in_pTZ_slices.pdf").Data());
 
   std::cout << "Saved plots:" << std::endl;
-  std::cout << "  compare_projection_costh_lead_vs_sublead.pdf" << std::endl;
-  std::cout << "  compare_projection_deltaeta_lead_vs_sublead.pdf" << std::endl;
-  std::cout << "  compare_projection_deltaeta_vs_costh.pdf" << std::endl;
-  std::cout << "  compare_projection_costh_pt_slices_lead_vs_sublead.pdf" << std::endl;
-  std::cout << "  compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf" << std::endl;
-  std::cout << "  compare_projectionY_costh_in_deltaeta_slices.pdf" << std::endl;
-  std::cout << "  compare_projectionX_deltaeta_in_costh_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_pT_em_in_pT_ep_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_pT_ep_in_pT_em_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_pT_sublead_in_pT_lead_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_pT_lead_in_pT_sublead_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf" << std::endl;
-  std::cout << "  " << (isY ? "compare_projection_costheta_in_yZ_slices.pdf" : "compare_projection_costheta_in_pTZ_slices.pdf") << std::endl;
-  std::cout << "  " << (isY ? "compare_projection_phi_in_yZ_slices.pdf" : "compare_projection_phi_in_pTZ_slices.pdf") << std::endl;
-  std::cout << "  " << (isY ? "compare_projection_pT_m_in_yZ_slices.pdf" : "compare_projection_eta_m_in_pTZ_slices.pdf") << std::endl;
-  std::cout << "  " << (isY ? "compare_projection_pT_p_in_yZ_slices.pdf" : "compare_projection_eta_p_in_pTZ_slices.pdf") << std::endl;
-  std::cout << "  " << (isY ? "compare_projection_deltaeta_in_yZ_slices.pdf" : "compare_projection_deltaeta_in_pTZ_slices.pdf") << std::endl;
-  std::cout << "  " << (isY ? "compare_projection_overlay_deltaeta_in_yZ_slices.pdf" : "compare_projection_overlay_deltaeta_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_costh_lead_vs_sublead.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_deltaeta_lead_vs_sublead.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_deltaeta_vs_costh.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_costh_pt_slices_lead_vs_sublead.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projectionY_costh_in_deltaeta_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projectionX_deltaeta_in_costh_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_pT_em_in_pT_ep_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_pT_ep_in_pT_em_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_pT_sublead_in_pT_lead_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_pT_lead_in_pT_sublead_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_costheta_in_yZ_slices.pdf" : "compare_projection_costheta_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_phi_in_yZ_slices.pdf" : "compare_projection_phi_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_pT_m_in_yZ_slices.pdf" : "compare_projection_eta_m_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_pT_p_in_yZ_slices.pdf" : "compare_projection_eta_p_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_deltaeta_in_yZ_slices.pdf" : "compare_projection_deltaeta_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_overlay_deltaeta_in_yZ_slices.pdf" : "compare_projection_overlay_deltaeta_in_pTZ_slices.pdf") << std::endl;
 
   //f->Close();
 }

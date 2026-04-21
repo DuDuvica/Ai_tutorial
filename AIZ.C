@@ -17,9 +17,11 @@ using namespace std;
 
 bool sherpa = false;
 bool test = false; // set to true for quick test with limited events; set to false for full run
-bool override = true; // set to true to overwrite existing output file without prompt
+bool override = false; // set to true to overwrite existing output file without prompt
 bool normXS = true;
 bool ifTrueOnly=true;
+bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCutEtaonly = true ;
 
 // Macro to plot Ai coefficient from Sherpa and Powheg Z samples
 void AIZ(bool isY=false){
@@ -28,7 +30,13 @@ void AIZ(bool isY=false){
   cout << "with configuration: " << endl;
   cout << " isY: " << isY << endl;
   cout << " ifTrueOnly: " << ifTrueOnly << endl;
+  cout << " FiducialCut: " << FiducialCut << endl;
+  cout << " FiducialCutEtaonly: " << FiducialCutEtaonly << endl;
 
+  if (FiducialCutEtaonly && !FiducialCut) {
+    cout << " ERROR: FiducialCutEtaonly cannot be true if FiducialCut is false. Please set FiducialCut to true to apply eta-only fiducial cuts." << endl;
+    return;
+  }
 
   double xsecAMI = 0;
 
@@ -125,6 +133,8 @@ void AIZ(bool isY=false){
 
   std::cout << "Looking at File " << minitree << std::endl;
   TString prefix = ifTrueOnly ? "Truth_" : "";
+  if ( FiducialCut ) prefix = prefix + "Fiducial_";
+  if (FiducialCutEtaonly) prefix = prefix + "EtaOnly_";
   TString nameOutput = "AI_Z_"+prefix+outputName+mode+".root";
   TFile* Output = new TFile(nameOutput);
   bool isf = true;
@@ -363,9 +373,28 @@ void AIZ(bool isY=false){
         if (ifTrueOnly) {
           pt_el = lepPtTruth1/1000.0; // GeV
           pt_pos = lepPtTruth0/1000.0; // GeV
-  // IF truthOnly Ntuple already selected
-    em.SetPtEtaPhiM(lepPtTruth1/1000.0, lepEtaTruth1, lepPhiTruth1, 0);//m_evtTree->lepMTruth1/m_GeV);
-    ep.SetPtEtaPhiM(lepPtTruth0/1000.0, lepEtaTruth0, lepPhiTruth0, 0);//m_evtTree->lepMTruth0/m_GeV);
+  
+          if ( FiducialCut ) {
+            if (FiducialCutEtaonly) {
+              // Apply only eta cuts for fiducial selection
+              if (fabs(lepEtaTruth1) > 2.5 || fabs(lepEtaTruth0) > 2.5) {
+                // Skip events where leptons do not pass eta cuts
+                if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails eta-only fiducial cuts: eta_el = " << lepEtaTruth1
+                      << "; eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
+                continue;
+              }
+            } else {
+            if (pt_el < 25.0 || fabs(lepEtaTruth1) > 2.5 || pt_pos < 25.0 || fabs(lepEtaTruth0) > 2.5) {
+              // Skip events where leptons do not pass fiducial cuts
+             if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails fiducial cuts: pt_el = " << pt_el << " GeV, eta_el = " << lepEtaTruth1
+                   << "; pt_pos = " << pt_pos << " GeV, eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
+              continue;
+            }
+            }
+          }  
+          // IF truthOnly Ntuple already selected
+          em.SetPtEtaPhiM(lepPtTruth1/1000.0, lepEtaTruth1, lepPhiTruth1, 0);//m_evtTree->lepMTruth1/m_GeV);
+          ep.SetPtEtaPhiM(lepPtTruth0/1000.0, lepEtaTruth0, lepPhiTruth0, 0);//m_evtTree->lepMTruth0/m_GeV);
         } else {
 
         // Skip events where leptons are not identified as e+e-

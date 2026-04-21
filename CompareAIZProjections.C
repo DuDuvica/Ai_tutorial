@@ -4,17 +4,30 @@
 #include "TCanvas.h"
 #include "TLegend.h"
 #include "TPad.h"
+#include "TLine.h"
 #include "TString.h"
 #include "TStyle.h"
 #include <iostream>
 #include <algorithm>
 
-void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningPowheg_pT_NormXsec.root") {
+void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningPowheg_Y_NormXsec.root", bool isY = false) {
   TFile* f = TFile::Open(inFile, "READ");
   if (!f || f->IsZombie()) {
     std::cout << "ERROR: cannot open file " << inFile << std::endl;
     return;
   }
+  bool isFiducial = false;
+ bool EtaOnly = false;
+
+  if ( inFile.Contains("Fiducial") ) {
+    isFiducial = true;
+    EtaOnly = inFile.Contains("EtaOnly");
+    std::cout << "Comparing projections from " << inFile << " with fiducial cuts applied. ETA only  " << EtaOnly << std::endl;
+   } else {
+    isFiducial = false;
+  }
+  
+    std::cout << "Comparing projections from " << inFile << " with isY = " << isY <<  " Is Fiducial: " << isFiducial << std::endl;
 
   TH2D* hCosthLead = static_cast<TH2D*>(f->Get("costh_vs_pt_leading"));
   TH2D* hCosthSub  = static_cast<TH2D*>(f->Get("costh_vs_pt_subleading"));
@@ -23,14 +36,18 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   TH2D* hDEtaCosth = static_cast<TH2D*>(f->Get("deltaEta_vs_costh_ll"));
   TH2D* hPtEpVsEm  = static_cast<TH2D*>(f->Get("pt_ep_vs_em"));
   TH2D* hPtLeadVsSublead = static_cast<TH2D*>(f->Get("pt_leading_vs_subleading"));
-  TH2D* hZptVsCostheta = static_cast<TH2D*>(f->Get("zPt_vs_costheta"));
-  TH2D* hZptVsPhi      = static_cast<TH2D*>(f->Get("zPt_vs_phi"));
+  TH2D* hBosonVsObsM = static_cast<TH2D*>(f->Get(isY ? "zY_vs_pt_m" : "zPt_vs_eta_m"));
+  TH2D* hBosonVsObsP = static_cast<TH2D*>(f->Get(isY ? "zY_vs_pt_p" : "zPt_vs_eta_p"));
+  TH2D* hBosonVsCostheta = static_cast<TH2D*>(f->Get(isY ? "zY_vs_costheta" : "zPt_vs_costheta"));
+  TH2D* hBosonVsPhi      = static_cast<TH2D*>(f->Get(isY ? "zY_vs_phi" : "zPt_vs_phi"));
+  TH2D* hDEtaVsBoson     = static_cast<TH2D*>(f->Get(isY ? "deltaEta_vs_zY_ll" : "deltaEta_vs_zPt_ll"));
 
-  if (!hCosthLead || !hCosthSub || !hDEtaLead || !hDEtaSub || !hDEtaCosth || !hPtEpVsEm || !hPtLeadVsSublead || !hZptVsCostheta || !hZptVsPhi) {
+  if (!hCosthLead || !hCosthSub || !hDEtaLead || !hDEtaSub || !hDEtaCosth || !hPtEpVsEm || !hPtLeadVsSublead || !hBosonVsObsM || !hBosonVsObsP || !hBosonVsCostheta || !hBosonVsPhi || !hDEtaVsBoson) {
     std::cout << "ERROR: one or more required histograms are missing in " << inFile << std::endl;
     std::cout << "Needed: costh_vs_pt_leading, costh_vs_pt_subleading, "
               << "deltaEta_vs_leadingPt_ll, deltaEta_vs_subleadingPt_ll, deltaEta_vs_costh_ll, pt_ep_vs_em, pt_leading_vs_subleading, "
-              << "zPt_vs_costheta, zPt_vs_phi"
+              << (isY ? "zY_vs_pt_m, zY_vs_pt_p, zY_vs_costheta, zY_vs_phi, deltaEta_vs_zY_ll"
+                       : "zPt_vs_eta_m, zPt_vs_eta_p, zPt_vs_costheta, zPt_vs_phi, deltaEta_vs_zPt_ll")
               << std::endl;
     f->Close();
     return;
@@ -496,88 +513,265 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     legPtLeadSublead->Draw();
   }
 
-  // 10) zPt_vs_costheta and zPt_vs_phi projections in pT(Z) bins.
-  // Requested bins: 0-5, 5-10, 10-15, 15-35, 35-55, 55-80, 80-2000 GeV.
-  const int nPtZSlices = 7;
-  const double ptZLow[nPtZSlices]  = {0., 5., 10., 15., 35., 55., 80.};
-  const double ptZHigh[nPtZSlices] = {5., 10., 15., 35., 55., 80., 2000.};
+  // 10) Boson-variable sliced projections.
+  // isY = false: pT(Z) bins [GeV] = [0,5,10,15,35,55,80,2000]
+  // isY = true : |y(Z)| bins      = [0,0.4,0.8,1.6,2.4,3.2,4,8]
+  const int nBosonSlices = 7;
+  const double bosonLow[nBosonSlices]  = {0., 5., 10., 15., 35., 55., 80.};
+  const double bosonHigh[nBosonSlices] = {5., 10., 15., 35., 55., 80., 2000.};
+  const double yLow[nBosonSlices]      = {0.0, 0.4, 0.8, 1.6, 2.4, 3.2, 4.0};
+  const double yHigh[nBosonSlices]     = {0.4, 0.8, 1.6, 2.4, 3.2, 4.0, 8.0};
 
-  TCanvas* cZCosthPtSlices = new TCanvas("c_projection_costheta_in_zpt_slices", "cos#theta_{CS} in p_{T}(Z) slices", 1600, 900);
-  cZCosthPtSlices->Divide(4, 2);
+  const char* bosonLabel = isY ? "|y(Z)|" : "p_{T}(Z)";
+  const char* bosonUnit = isY ? "" : " GeV";
+  const char* obsMinusLabel = isY ? "p_{T}(e^{-}) [GeV]" : "#eta(e^{-})";
+  const char* obsPlusLabel = isY ? "p_{T}(e^{+}) [GeV]" : "#eta(e^{+})";
 
-  TCanvas* cZPhiPtSlices = new TCanvas("c_projection_phi_in_zpt_slices", "#phi_{CS} in p_{T}(Z) slices", 1600, 900);
-  cZPhiPtSlices->Divide(4, 2);
+  TCanvas* cBosonCosthSlices = new TCanvas(
+    isY ? "c_projection_costheta_in_zY_slices" : "c_projection_costheta_in_zpt_slices",
+    isY ? "cos#theta_{CS} in |y(Z)| slices" : "cos#theta_{CS} in p_{T}(Z) slices",
+    1600, 900
+  );
+  cBosonCosthSlices->Divide(4, 2);
 
-  for (int i = 0; i < nPtZSlices; ++i) {
-    const double ptLo = ptZLow[i];
-    const double ptHi = ptZHigh[i];
+  TCanvas* cBosonPhiSlices = new TCanvas(
+    isY ? "c_projection_phi_in_zY_slices" : "c_projection_phi_in_zpt_slices",
+    isY ? "#phi_{CS} in |y(Z)| slices" : "#phi_{CS} in p_{T}(Z) slices",
+    1600, 900
+  );
+  cBosonPhiSlices->Divide(4, 2);
 
-    int xBinLoZCosth = hZptVsCostheta->GetXaxis()->FindBin(ptLo + 1e-6);
-    int xBinHiZCosth = (ptHi >= hZptVsCostheta->GetXaxis()->GetXmax())
-                         ? hZptVsCostheta->GetXaxis()->GetNbins()
-                         : hZptVsCostheta->GetXaxis()->FindBin(ptHi - 1e-6);
-    xBinLoZCosth = std::max(1, xBinLoZCosth);
-    xBinHiZCosth = std::max(xBinLoZCosth, std::min(hZptVsCostheta->GetXaxis()->GetNbins(), xBinHiZCosth));
+  TCanvas* cBosonObsMSlices = new TCanvas(
+    isY ? "c_projection_pt_m_in_zY_slices" : "c_projection_eta_m_in_zpt_slices",
+    isY ? "p_{T}(e^{-}) in |y(Z)| slices" : "#eta(e^{-}) in p_{T}(Z) slices",
+    1600, 900
+  );
+  cBosonObsMSlices->Divide(4, 2);
 
-    TH1D* pCosthInZPt = hZptVsCostheta->ProjectionY(Form("pCostheta_zptbin_%d", i), xBinLoZCosth, xBinHiZCosth);
-    if (pCosthInZPt->Integral() > 0) pCosthInZPt->Scale(1.0 / pCosthInZPt->Integral());
-    pCosthInZPt->SetLineColor(kBlue + 1);
-    pCosthInZPt->SetLineWidth(2);
+  TCanvas* cBosonObsPSlices = new TCanvas(
+    isY ? "c_projection_pt_p_in_zY_slices" : "c_projection_eta_p_in_zpt_slices",
+    isY ? "p_{T}(e^{+}) in |y(Z)| slices" : "#eta(e^{+}) in p_{T}(Z) slices",
+    1600, 900
+  );
+  cBosonObsPSlices->Divide(4, 2);
 
-    cZCosthPtSlices->cd(i + 1);
-    pCosthInZPt->SetTitle(Form("%.0f < p_{T}(Z) < %.0f GeV;cos#theta_{CS};Normalized entries", ptLo, ptHi));
-    pCosthInZPt->Draw("hist");
+  TCanvas* cDEtaInBosonSlices = new TCanvas(
+    isY ? "c_projection_deltaeta_in_zY_slices" : "c_projection_deltaeta_in_zpt_slices",
+    isY ? "|#Delta#eta| in |y(Z)| slices" : "|#Delta#eta| in p_{T}(Z) slices",
+    1600, 900
+  );
+  cDEtaInBosonSlices->Divide(4, 2);
 
-    int xBinLoZPhi = hZptVsPhi->GetXaxis()->FindBin(ptLo + 1e-6);
-    int xBinHiZPhi = (ptHi >= hZptVsPhi->GetXaxis()->GetXmax())
-                       ? hZptVsPhi->GetXaxis()->GetNbins()
-                       : hZptVsPhi->GetXaxis()->FindBin(ptHi - 1e-6);
-    xBinLoZPhi = std::max(1, xBinLoZPhi);
-    xBinHiZPhi = std::max(xBinLoZPhi, std::min(hZptVsPhi->GetXaxis()->GetNbins(), xBinHiZPhi));
+  TH1D* pDEtaBosonSlices[nBosonSlices] = {nullptr};
+  const int sliceColors[nBosonSlices] = {kRed + 1, kBlue + 1, kGreen + 2, kMagenta + 1, kOrange + 7, kAzure + 2, kBlack};
 
-    TH1D* pPhiInZPt = hZptVsPhi->ProjectionY(Form("pPhi_zptbin_%d", i), xBinLoZPhi, xBinHiZPhi);
-    if (pPhiInZPt->Integral() > 0) pPhiInZPt->Scale(1.0 / pPhiInZPt->Integral());
-    pPhiInZPt->SetLineColor(kRed + 1);
-    pPhiInZPt->SetLineWidth(2);
+  for (int i = 0; i < nBosonSlices; ++i) {
+    const double bosonLo = isY ? yLow[i] : bosonLow[i];
+    const double bosonHi = isY ? yHigh[i] : bosonHigh[i];
 
-    cZPhiPtSlices->cd(i + 1);
-    pPhiInZPt->SetTitle(Form("%.0f < p_{T}(Z) < %.0f GeV;#phi_{CS};Normalized entries", ptLo, ptHi));
-    pPhiInZPt->Draw("hist");
+    int xBinLoBoson = hBosonVsCostheta->GetXaxis()->FindBin(bosonLo + 1e-6);
+    int xBinHiBoson = (bosonHi >= hBosonVsCostheta->GetXaxis()->GetXmax())
+                        ? hBosonVsCostheta->GetXaxis()->GetNbins()
+                        : hBosonVsCostheta->GetXaxis()->FindBin(bosonHi - 1e-6);
+    xBinLoBoson = std::max(1, xBinLoBoson);
+    xBinHiBoson = std::max(xBinLoBoson, std::min(hBosonVsCostheta->GetXaxis()->GetNbins(), xBinHiBoson));
+
+    TH1D* pCosthInBoson = hBosonVsCostheta->ProjectionY(Form("pCostheta_bosonbin_%d", i), xBinLoBoson, xBinHiBoson);
+    if (pCosthInBoson->Integral() > 0) pCosthInBoson->Scale(1.0 / pCosthInBoson->Integral());
+    pCosthInBoson->SetLineColor(kBlue + 1);
+    pCosthInBoson->SetLineWidth(2);
+
+    cBosonCosthSlices->cd(i + 1);
+    pCosthInBoson->SetTitle(Form("%.1f < %s < %.1f%s;cos#theta_{CS};Normalized entries", bosonLo, bosonLabel, bosonHi, bosonUnit));
+    pCosthInBoson->Draw("hist");
+
+    TH1D* pPhiInBoson = hBosonVsPhi->ProjectionY(Form("pPhi_bosonbin_%d", i), xBinLoBoson, xBinHiBoson);
+    if (pPhiInBoson->Integral() > 0) pPhiInBoson->Scale(1.0 / pPhiInBoson->Integral());
+    pPhiInBoson->SetLineColor(kRed + 1);
+    pPhiInBoson->SetLineWidth(2);
+
+    cBosonPhiSlices->cd(i + 1);
+    pPhiInBoson->SetTitle(Form("%.1f < %s < %.1f%s;#phi_{CS};Normalized entries", bosonLo, bosonLabel, bosonHi, bosonUnit));
+    pPhiInBoson->Draw("hist");
+
+    TH1D* pObsMInBoson = hBosonVsObsM->ProjectionY(Form("pObsM_bosonbin_%d", i), xBinLoBoson, xBinHiBoson);
+    if (pObsMInBoson->Integral() > 0) pObsMInBoson->Scale(1.0 / pObsMInBoson->Integral());
+    pObsMInBoson->SetLineColor(kGreen + 2);
+    pObsMInBoson->SetLineWidth(2);
+
+    cBosonObsMSlices->cd(i + 1);
+    pObsMInBoson->SetTitle(Form("%.1f < %s < %.1f%s;%s;Normalized entries", bosonLo, bosonLabel, bosonHi, bosonUnit, obsMinusLabel));
+    pObsMInBoson->Draw("hist");
+
+    TH1D* pObsPInBoson = hBosonVsObsP->ProjectionY(Form("pObsP_bosonbin_%d", i), xBinLoBoson, xBinHiBoson);
+    if (pObsPInBoson->Integral() > 0) pObsPInBoson->Scale(1.0 / pObsPInBoson->Integral());
+    pObsPInBoson->SetLineColor(kMagenta + 1);
+    pObsPInBoson->SetLineWidth(2);
+
+    cBosonObsPSlices->cd(i + 1);
+    pObsPInBoson->SetTitle(Form("%.1f < %s < %.1f%s;%s;Normalized entries", bosonLo, bosonLabel, bosonHi, bosonUnit, obsPlusLabel));
+    pObsPInBoson->Draw("hist");
+
+    // In deltaEta_vs_{zPt|zY}, boson variable is on Y axis.
+    int yBinLoBoson = hDEtaVsBoson->GetYaxis()->FindBin(bosonLo + 1e-6);
+    int yBinHiBoson = (bosonHi >= hDEtaVsBoson->GetYaxis()->GetXmax())
+                        ? hDEtaVsBoson->GetYaxis()->GetNbins()
+                        : hDEtaVsBoson->GetYaxis()->FindBin(bosonHi - 1e-6);
+    yBinLoBoson = std::max(1, yBinLoBoson);
+    yBinHiBoson = std::max(yBinLoBoson, std::min(hDEtaVsBoson->GetYaxis()->GetNbins(), yBinHiBoson));
+
+    TH1D* pDEtaInBoson = hDEtaVsBoson->ProjectionX(Form("pDeltaEta_bosonbin_%d", i), yBinLoBoson, yBinHiBoson);
+    if (pDEtaInBoson->Integral() > 0) pDEtaInBoson->Scale(1.0 / pDEtaInBoson->Integral());
+    pDEtaInBoson->SetLineColor(sliceColors[i]);
+    pDEtaInBoson->SetLineWidth(2);
+    pDEtaBosonSlices[i] = pDEtaInBoson;
+
+    cDEtaInBosonSlices->cd(i + 1);
+    pDEtaInBoson->SetTitle(Form("%.1f < %s < %.1f%s;|#Delta#eta(l_{1},l_{2})|;Normalized entries", bosonLo, bosonLabel, bosonHi, bosonUnit));
+    pDEtaInBoson->Draw("hist");
+  }
+
+  // Overlay all deltaEta boson slices on one canvas with distinct colors.
+  TCanvas* cDEtaBosonOverlay = new TCanvas(
+    isY ? "c_overlay_deltaeta_in_zY_slices" : "c_overlay_deltaeta_in_zpt_slices",
+    isY ? "Overlay |#Delta#eta| in |y(Z)| slices" : "Overlay |#Delta#eta| in p_{T}(Z) slices",
+    1000, 800
+  );
+
+  TPad* padDEtaOverlayTop = new TPad("padDEtaOverlayTop", "padDEtaOverlayTop", 0.0, 0.30, 1.0, 1.0);
+  TPad* padDEtaOverlayBot = new TPad("padDEtaOverlayBot", "padDEtaOverlayBot", 0.0, 0.00, 1.0, 0.30);
+  padDEtaOverlayTop->SetBottomMargin(0.02);
+  padDEtaOverlayBot->SetTopMargin(0.05);
+  padDEtaOverlayBot->SetBottomMargin(0.32);
+  cDEtaBosonOverlay->cd();
+  padDEtaOverlayTop->Draw();
+  padDEtaOverlayBot->Draw();
+
+  double maxDeltaEtaOverlay = 0.0;
+  for (int i = 0; i < nBosonSlices; ++i) {
+    if (!pDEtaBosonSlices[i]) continue;
+    maxDeltaEtaOverlay = std::max(maxDeltaEtaOverlay, pDEtaBosonSlices[i]->GetMaximum());
+  }
+
+  const double legX1 = isY ? 0.14 : 0.56;
+  const double legY1 = isY ? 0.60 : 0.58;
+  const double legX2 = isY ? 0.46 : 0.88;
+  const double legY2 = 0.88;
+  TLegend* legDEtaBosonOverlay = new TLegend(legX1, legY1, legX2, legY2);
+  legDEtaBosonOverlay->SetBorderSize(0);
+  legDEtaBosonOverlay->SetFillStyle(0);
+
+  padDEtaOverlayTop->cd();
+  for (int i = 0; i < nBosonSlices; ++i) {
+    if (!pDEtaBosonSlices[i]) continue;
+    if (i == 0) {
+      pDEtaBosonSlices[i]->SetTitle(Form("Overlay: |#Delta#eta| slices in %s;%s;Normalized entries", bosonLabel, "|#Delta#eta(l_{1},l_{2})|"));
+      if (maxDeltaEtaOverlay > 0.0) pDEtaBosonSlices[i]->SetMaximum(1.25 * maxDeltaEtaOverlay);
+      pDEtaBosonSlices[i]->Draw("hist");
+    } else {
+      pDEtaBosonSlices[i]->Draw("hist same");
+    }
+    const double bosonLo = isY ? yLow[i] : bosonLow[i];
+    const double bosonHi = isY ? yHigh[i] : bosonHigh[i];
+    legDEtaBosonOverlay->AddEntry(pDEtaBosonSlices[i], Form("%.1f < %s < %.1f%s", bosonLo, bosonLabel, bosonHi, bosonUnit), "l");
+  }
+  legDEtaBosonOverlay->Draw();
+
+  // Ratio panel: each slice divided by the first slice.
+  padDEtaOverlayBot->cd();
+  TH1D* pDEtaRef = pDEtaBosonSlices[0];
+  TH1D* pFirstRatio = nullptr;
+  for (int i = 1; i < nBosonSlices; ++i) {
+    if (!pDEtaBosonSlices[i] || !pDEtaRef) continue;
+    TH1D* pRatio = static_cast<TH1D*>(pDEtaBosonSlices[i]->Clone(Form("ratio_deltaeta_boson_slice_%d", i)));
+    pRatio->Divide(pDEtaRef);
+    pRatio->SetLineColor(sliceColors[i]);
+    pRatio->SetMarkerColor(sliceColors[i]);
+    pRatio->SetMarkerStyle(20);
+    pRatio->SetMarkerSize(0.55);
+    pRatio->GetYaxis()->SetRangeUser(0.5, 1.5);
+    pRatio->GetYaxis()->SetTitle("Slice / Ref");
+    pRatio->GetYaxis()->SetTitleSize(0.10);
+    pRatio->GetYaxis()->SetLabelSize(0.09);
+    pRatio->GetYaxis()->SetTitleOffset(0.45);
+    pRatio->GetYaxis()->SetNdivisions(505);
+    pRatio->GetXaxis()->SetTitle("|#Delta#eta(l_{1},l_{2})|");
+    pRatio->GetXaxis()->SetTitleSize(0.12);
+    pRatio->GetXaxis()->SetLabelSize(0.10);
+    if (!pFirstRatio) {
+      pFirstRatio = pRatio;
+      pFirstRatio->Draw("ep");
+    } else {
+      pRatio->Draw("ep same");
+    }
+  }
+
+  if (pFirstRatio && pDEtaRef) {
+    const double xMin = pDEtaRef->GetXaxis()->GetXmin();
+    const double xMax = pDEtaRef->GetXaxis()->GetXmax();
+    TLine* unityLine = new TLine(xMin, 1.0, xMax, 1.0);
+    unityLine->SetLineColor(kGray + 2);
+    unityLine->SetLineStyle(2);
+    unityLine->SetLineWidth(2);
+    unityLine->Draw("same");
+
+    const double refLo = isY ? yLow[0] : bosonLow[0];
+    const double refHi = isY ? yHigh[0] : bosonHigh[0];
+    TLegend* legRatioInfo = new TLegend(0.54, 0.72, 0.88, 0.90);
+    legRatioInfo->SetBorderSize(0);
+    legRatioInfo->SetFillStyle(0);
+    legRatioInfo->SetTextSize(0.08);
+    legRatioInfo->AddEntry((TObject*)0, Form("Ref: %.1f < %s < %.1f%s", refLo, bosonLabel, refHi, bosonUnit), "");
+    legRatioInfo->AddEntry((TObject*)0, "All curves: slice / ref", "");
+    legRatioInfo->Draw();
   }
 
   // Save comparison plots next to the input file for quick checks.
-  cCosth->SaveAs("compare_projection_costh_lead_vs_sublead.pdf");
-  cDEtaPt->SaveAs("compare_projection_deltaeta_lead_vs_sublead.pdf");
-  cDEtaCosth->SaveAs("compare_projection_deltaeta_vs_costh.pdf");
-  cCosthPtSlices->SaveAs("compare_projection_costh_pt_slices_lead_vs_sublead.pdf");
-  cDEtaPtSlices->SaveAs("compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf");
-  cCosthInDEtaSlices->SaveAs("compare_projectionY_costh_in_deltaeta_slices.pdf");
-  cDEtaInCosthSlices->SaveAs("compare_projectionX_deltaeta_in_costh_slices.pdf");
-  cPtEpSlices->SaveAs("compare_projection_pT_em_in_pT_ep_slices.pdf");
-  cPtEmSlices->SaveAs("compare_projection_pT_ep_in_pT_em_slices.pdf");
-  cPtLeadSlices->SaveAs("compare_projection_pT_sublead_in_pT_lead_slices.pdf");
-  cPtSubleadSlices->SaveAs("compare_projection_pT_lead_in_pT_sublead_slices.pdf");
-  cPtEpEmOverlay->SaveAs("compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf");
-  cPtLeadSubleadOverlay->SaveAs("compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf");
-  cZCosthPtSlices->SaveAs("compare_projection_costheta_in_pTZ_slices.pdf");
-  cZPhiPtSlices->SaveAs("compare_projection_phi_in_pTZ_slices.pdf");
+  TString outPrefix;
+  if (isFiducial) outPrefix += "fiducial_";
+  if (EtaOnly) outPrefix += "etaonly_";
+  auto prefixed = [&](const char* name) { return outPrefix + name; };
+
+  cCosth->SaveAs(prefixed("compare_projection_costh_lead_vs_sublead.pdf").Data());
+  cDEtaPt->SaveAs(prefixed("compare_projection_deltaeta_lead_vs_sublead.pdf").Data());
+  cDEtaCosth->SaveAs(prefixed("compare_projection_deltaeta_vs_costh.pdf").Data());
+  cCosthPtSlices->SaveAs(prefixed("compare_projection_costh_pt_slices_lead_vs_sublead.pdf").Data());
+  cDEtaPtSlices->SaveAs(prefixed("compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf").Data());
+  cCosthInDEtaSlices->SaveAs(prefixed("compare_projectionY_costh_in_deltaeta_slices.pdf").Data());
+  cDEtaInCosthSlices->SaveAs(prefixed("compare_projectionX_deltaeta_in_costh_slices.pdf").Data());
+  cPtEpSlices->SaveAs(prefixed("compare_projection_pT_em_in_pT_ep_slices.pdf").Data());
+  cPtEmSlices->SaveAs(prefixed("compare_projection_pT_ep_in_pT_em_slices.pdf").Data());
+  cPtLeadSlices->SaveAs(prefixed("compare_projection_pT_sublead_in_pT_lead_slices.pdf").Data());
+  cPtSubleadSlices->SaveAs(prefixed("compare_projection_pT_lead_in_pT_sublead_slices.pdf").Data());
+  cPtEpEmOverlay->SaveAs(prefixed("compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf").Data());
+  cPtLeadSubleadOverlay->SaveAs(prefixed("compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf").Data());
+  cBosonCosthSlices->SaveAs(prefixed(isY ? "compare_projection_costheta_in_yZ_slices.pdf" : "compare_projection_costheta_in_pTZ_slices.pdf").Data());
+  cBosonPhiSlices->SaveAs(prefixed(isY ? "compare_projection_phi_in_yZ_slices.pdf" : "compare_projection_phi_in_pTZ_slices.pdf").Data());
+  cBosonObsMSlices->SaveAs(prefixed(isY ? "compare_projection_pT_m_in_yZ_slices.pdf" : "compare_projection_eta_m_in_pTZ_slices.pdf").Data());
+  cBosonObsPSlices->SaveAs(prefixed(isY ? "compare_projection_pT_p_in_yZ_slices.pdf" : "compare_projection_eta_p_in_pTZ_slices.pdf").Data());
+  cDEtaInBosonSlices->SaveAs(prefixed(isY ? "compare_projection_deltaeta_in_yZ_slices.pdf" : "compare_projection_deltaeta_in_pTZ_slices.pdf").Data());
+  cDEtaBosonOverlay->SaveAs(prefixed(isY ? "compare_projection_overlay_deltaeta_in_yZ_slices.pdf" : "compare_projection_overlay_deltaeta_in_pTZ_slices.pdf").Data());
 
   std::cout << "Saved plots:" << std::endl;
-  std::cout << "  compare_projection_costh_lead_vs_sublead.pdf" << std::endl;
-  std::cout << "  compare_projection_deltaeta_lead_vs_sublead.pdf" << std::endl;
-  std::cout << "  compare_projection_deltaeta_vs_costh.pdf" << std::endl;
-  std::cout << "  compare_projection_costh_pt_slices_lead_vs_sublead.pdf" << std::endl;
-  std::cout << "  compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf" << std::endl;
-  std::cout << "  compare_projectionY_costh_in_deltaeta_slices.pdf" << std::endl;
-  std::cout << "  compare_projectionX_deltaeta_in_costh_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_pT_em_in_pT_ep_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_pT_ep_in_pT_em_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_pT_sublead_in_pT_lead_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_pT_lead_in_pT_sublead_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_costheta_in_pTZ_slices.pdf" << std::endl;
-  std::cout << "  compare_projection_phi_in_pTZ_slices.pdf" << std::endl;
+  std::cout << "  " << prefixed("compare_projection_costh_lead_vs_sublead.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_deltaeta_lead_vs_sublead.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_deltaeta_vs_costh.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_costh_pt_slices_lead_vs_sublead.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projectionY_costh_in_deltaeta_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projectionX_deltaeta_in_costh_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_pT_em_in_pT_ep_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_pT_ep_in_pT_em_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_pT_sublead_in_pT_lead_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_pT_lead_in_pT_sublead_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_overlay_pT_ep_vs_em_in_pT_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_projection_overlay_pT_lead_vs_sublead_in_pT_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_costheta_in_yZ_slices.pdf" : "compare_projection_costheta_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_phi_in_yZ_slices.pdf" : "compare_projection_phi_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_pT_m_in_yZ_slices.pdf" : "compare_projection_eta_m_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_pT_p_in_yZ_slices.pdf" : "compare_projection_eta_p_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_deltaeta_in_yZ_slices.pdf" : "compare_projection_deltaeta_in_pTZ_slices.pdf") << std::endl;
+  std::cout << "  " << prefixed(isY ? "compare_projection_overlay_deltaeta_in_yZ_slices.pdf" : "compare_projection_overlay_deltaeta_in_pTZ_slices.pdf") << std::endl;
 
   //f->Close();
 }

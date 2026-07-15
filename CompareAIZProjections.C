@@ -18,11 +18,13 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   }
   bool isFiducial = false;
  bool EtaOnly = false;
+ bool CF = false;
 
   if ( inFile.Contains("Fiducial") ) {
     isFiducial = true;
     EtaOnly = inFile.Contains("EtaOnly");
-    std::cout << "Comparing projections from " << inFile << " with fiducial cuts applied. ETA only  " << EtaOnly << std::endl;
+    CF = inFile.Contains("CF");
+    std::cout << "Comparing projections from " << inFile << " with fiducial cuts applied. ETA only is  " << EtaOnly << " CF is: " << CF << std::endl;
    } else {
     isFiducial = false;
   }
@@ -41,6 +43,12 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   TH2D* hBosonVsCostheta = static_cast<TH2D*>(f->Get(isY ? "zY_vs_costheta" : "zPt_vs_costheta"));
   TH2D* hBosonVsPhi      = static_cast<TH2D*>(f->Get(isY ? "zY_vs_phi" : "zPt_vs_phi"));
   TH2D* hDEtaVsBoson     = static_cast<TH2D*>(f->Get(isY ? "deltaEta_vs_zY_ll" : "deltaEta_vs_zPt_ll"));
+
+  // Optional inputs for additional Y(Z)-sliced leading/subleading overlays.
+  TH2D* hZYVsPtLead  = static_cast<TH2D*>(f->Get("zY_vs_pt_leading"));
+  TH2D* hZYVsPtSub   = static_cast<TH2D*>(f->Get("zY_vs_pt_subleading"));
+  TH2D* hZYVsEtaLead = static_cast<TH2D*>(f->Get("zY_vs_eta_leading"));
+  TH2D* hZYVsEtaSub  = static_cast<TH2D*>(f->Get("zY_vs_eta_subleading"));
 
   if (!hCosthLead || !hCosthSub || !hDEtaLead || !hDEtaSub || !hDEtaCosth || !hPtEpVsEm || !hPtLeadVsSublead || !hBosonVsObsM || !hBosonVsObsP || !hBosonVsCostheta || !hBosonVsPhi || !hDEtaVsBoson) {
     std::cout << "ERROR: one or more required histograms are missing in " << inFile << std::endl;
@@ -527,6 +535,9 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   const char* obsMinusLabel = isY ? "p_{T}(e^{-}) [GeV]" : "#eta(e^{-})";
   const char* obsPlusLabel = isY ? "p_{T}(e^{+}) [GeV]" : "#eta(e^{+})";
 
+  TCanvas* cPtLeadSubleadInYSlices = nullptr;
+  TCanvas* cEtaLeadSubleadInYSlices = nullptr;
+
   TCanvas* cBosonCosthSlices = new TCanvas(
     isY ? "c_projection_costheta_in_zY_slices" : "c_projection_costheta_in_zpt_slices",
     isY ? "cos#theta_{CS} in |y(Z)| slices" : "cos#theta_{CS} in p_{T}(Z) slices",
@@ -726,10 +737,104 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     legRatioInfo->Draw();
   }
 
+  // 11) Requested overlays in Y(Z) slices: pT(leading/subleading) and eta(leading/subleading).
+  if (isY) {
+    if (hZYVsPtLead && hZYVsPtSub) {
+      cPtLeadSubleadInYSlices = new TCanvas(
+        "c_overlay_pT_lead_vs_sublead_in_yZ_slices",
+        "p_{T}(leading) vs p_{T}(subleading) in |y(Z)| slices",
+        1600, 900
+      );
+      cPtLeadSubleadInYSlices->Divide(4, 2);
+
+      for (int i = 0; i < nBosonSlices; ++i) {
+        const double yLo = yLow[i];
+        const double yHi = yHigh[i];
+
+        int xBinLo = hZYVsPtLead->GetXaxis()->FindBin(yLo + 1e-6);
+        int xBinHi = (yHi >= hZYVsPtLead->GetXaxis()->GetXmax())
+                       ? hZYVsPtLead->GetXaxis()->GetNbins()
+                       : hZYVsPtLead->GetXaxis()->FindBin(yHi - 1e-6);
+        xBinLo = std::max(1, xBinLo);
+        xBinHi = std::max(xBinLo, std::min(hZYVsPtLead->GetXaxis()->GetNbins(), xBinHi));
+
+        TH1D* pPtLeadInY = hZYVsPtLead->ProjectionY(Form("pPt_lead_yZbin_%d", i), xBinLo, xBinHi);
+        TH1D* pPtSubInY  = hZYVsPtSub->ProjectionY(Form("pPt_sublead_yZbin_%d", i), xBinLo, xBinHi);
+
+        if (pPtLeadInY->Integral() > 0) pPtLeadInY->Scale(1.0 / pPtLeadInY->Integral());
+        if (pPtSubInY->Integral() > 0)  pPtSubInY->Scale(1.0 / pPtSubInY->Integral());
+
+        pPtLeadInY->SetLineColor(kRed + 1);
+        pPtLeadInY->SetLineWidth(2);
+        pPtSubInY->SetLineColor(kBlue + 1);
+        pPtSubInY->SetLineWidth(2);
+        pPtSubInY->SetLineStyle(2);
+
+        cPtLeadSubleadInYSlices->cd(i + 1);
+        pPtLeadInY->SetTitle(Form("%.1f < |y(Z)| < %.1f;p_{T} [GeV];Normalized entries", yLo, yHi));
+        pPtLeadInY->Draw("hist");
+        pPtSubInY->Draw("hist same");
+
+        TLegend* legPtInY = new TLegend(0.48, 0.74, 0.88, 0.88);
+        legPtInY->AddEntry(pPtLeadInY, "p_{T}(leading)", "l");
+        legPtInY->AddEntry(pPtSubInY, "p_{T}(subleading)", "l");
+        legPtInY->Draw();
+      }
+    } else {
+      std::cout << "WARNING: missing zY_vs_pt_leading and/or zY_vs_pt_subleading. Skipping pT(leading/subleading) in Y(Z) slices." << std::endl;
+    }
+
+    if (hZYVsEtaLead && hZYVsEtaSub) {
+      cEtaLeadSubleadInYSlices = new TCanvas(
+        "c_overlay_eta_lead_vs_sublead_in_yZ_slices",
+        "#eta(leading) vs #eta(subleading) in |y(Z)| slices",
+        1600, 900
+      );
+      cEtaLeadSubleadInYSlices->Divide(4, 2);
+
+      for (int i = 0; i < nBosonSlices; ++i) {
+        const double yLo = yLow[i];
+        const double yHi = yHigh[i];
+
+        int xBinLo = hZYVsEtaLead->GetXaxis()->FindBin(yLo + 1e-6);
+        int xBinHi = (yHi >= hZYVsEtaLead->GetXaxis()->GetXmax())
+                       ? hZYVsEtaLead->GetXaxis()->GetNbins()
+                       : hZYVsEtaLead->GetXaxis()->FindBin(yHi - 1e-6);
+        xBinLo = std::max(1, xBinLo);
+        xBinHi = std::max(xBinLo, std::min(hZYVsEtaLead->GetXaxis()->GetNbins(), xBinHi));
+
+        TH1D* pEtaLeadInY = hZYVsEtaLead->ProjectionY(Form("pEta_lead_yZbin_%d", i), xBinLo, xBinHi);
+        TH1D* pEtaSubInY  = hZYVsEtaSub->ProjectionY(Form("pEta_sublead_yZbin_%d", i), xBinLo, xBinHi);
+
+        if (pEtaLeadInY->Integral() > 0) pEtaLeadInY->Scale(1.0 / pEtaLeadInY->Integral());
+        if (pEtaSubInY->Integral() > 0)  pEtaSubInY->Scale(1.0 / pEtaSubInY->Integral());
+
+        pEtaLeadInY->SetLineColor(kRed + 1);
+        pEtaLeadInY->SetLineWidth(2);
+        pEtaSubInY->SetLineColor(kBlue + 1);
+        pEtaSubInY->SetLineWidth(2);
+        pEtaSubInY->SetLineStyle(2);
+
+        cEtaLeadSubleadInYSlices->cd(i + 1);
+        pEtaLeadInY->SetTitle(Form("%.1f < |y(Z)| < %.1f;#eta;Normalized entries", yLo, yHi));
+        pEtaLeadInY->Draw("hist");
+        pEtaSubInY->Draw("hist same");
+
+        TLegend* legEtaInY = new TLegend(0.48, 0.74, 0.88, 0.88);
+        legEtaInY->AddEntry(pEtaLeadInY, "#eta(leading)", "l");
+        legEtaInY->AddEntry(pEtaSubInY, "#eta(subleading)", "l");
+        legEtaInY->Draw();
+      }
+    } else {
+      std::cout << "WARNING: missing zY_vs_eta_leading and/or zY_vs_eta_subleading. Skipping eta(leading/subleading) in Y(Z) slices." << std::endl;
+    }
+  }
+
   // Save comparison plots next to the input file for quick checks.
   TString outPrefix;
   if (isFiducial) outPrefix += "fiducial_";
   if (EtaOnly) outPrefix += "etaonly_";
+  if (CF) outPrefix += "cf_";
   auto prefixed = [&](const char* name) { return outPrefix + name; };
 
   cCosth->SaveAs(prefixed("compare_projection_costh_lead_vs_sublead.pdf").Data());
@@ -751,6 +856,8 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   cBosonObsPSlices->SaveAs(prefixed(isY ? "compare_projection_pT_p_in_yZ_slices.pdf" : "compare_projection_eta_p_in_pTZ_slices.pdf").Data());
   cDEtaInBosonSlices->SaveAs(prefixed(isY ? "compare_projection_deltaeta_in_yZ_slices.pdf" : "compare_projection_deltaeta_in_pTZ_slices.pdf").Data());
   cDEtaBosonOverlay->SaveAs(prefixed(isY ? "compare_projection_overlay_deltaeta_in_yZ_slices.pdf" : "compare_projection_overlay_deltaeta_in_pTZ_slices.pdf").Data());
+  if (cPtLeadSubleadInYSlices) cPtLeadSubleadInYSlices->SaveAs(prefixed("compare_projection_overlay_pT_lead_vs_sublead_in_yZ_slices.pdf").Data());
+  if (cEtaLeadSubleadInYSlices) cEtaLeadSubleadInYSlices->SaveAs(prefixed("compare_projection_overlay_eta_lead_vs_sublead_in_yZ_slices.pdf").Data());
 
   std::cout << "Saved plots:" << std::endl;
   std::cout << "  " << prefixed("compare_projection_costh_lead_vs_sublead.pdf") << std::endl;
@@ -772,6 +879,8 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   std::cout << "  " << prefixed(isY ? "compare_projection_pT_p_in_yZ_slices.pdf" : "compare_projection_eta_p_in_pTZ_slices.pdf") << std::endl;
   std::cout << "  " << prefixed(isY ? "compare_projection_deltaeta_in_yZ_slices.pdf" : "compare_projection_deltaeta_in_pTZ_slices.pdf") << std::endl;
   std::cout << "  " << prefixed(isY ? "compare_projection_overlay_deltaeta_in_yZ_slices.pdf" : "compare_projection_overlay_deltaeta_in_pTZ_slices.pdf") << std::endl;
+  if (cPtLeadSubleadInYSlices) std::cout << "  " << prefixed("compare_projection_overlay_pT_lead_vs_sublead_in_yZ_slices.pdf") << std::endl;
+  if (cEtaLeadSubleadInYSlices) std::cout << "  " << prefixed("compare_projection_overlay_eta_lead_vs_sublead_in_yZ_slices.pdf") << std::endl;
 
   //f->Close();
 }

@@ -20,8 +20,9 @@ bool test = false; // set to true for quick test with limited events; set to fal
 bool override = false; // set to true to overwrite existing output file without prompt
 bool normXS = true;
 bool ifTrueOnly=true;
-bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
-bool FiducialCutEtaonly = true ;
+bool FiducialCut = false; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCutEtaonly = false ;
+bool FiducialCutCF = false ;
 
 // Macro to plot Ai coefficient from Sherpa and Powheg Z samples
 void AIZ(bool isY=false){
@@ -32,9 +33,9 @@ void AIZ(bool isY=false){
   cout << " ifTrueOnly: " << ifTrueOnly << endl;
   cout << " FiducialCut: " << FiducialCut << endl;
   cout << " FiducialCutEtaonly: " << FiducialCutEtaonly << endl;
-
-  if (FiducialCutEtaonly && !FiducialCut) {
-    cout << " ERROR: FiducialCutEtaonly cannot be true if FiducialCut is false. Please set FiducialCut to true to apply eta-only fiducial cuts." << endl;
+  cout << " FiducialCutCF: " << FiducialCutCF << endl;
+  if ( (FiducialCutEtaonly || FiducialCutCF) && !FiducialCut) {
+    cout << " ERROR: FiducialCutEtaonly or FiducialCutCF cannot be true if FiducialCut is false. Please set FiducialCut to true to apply eta-only fiducial cuts." << endl;
     return;
   }
 
@@ -135,6 +136,7 @@ void AIZ(bool isY=false){
   TString prefix = ifTrueOnly ? "Truth_" : "";
   if ( FiducialCut ) prefix = prefix + "Fiducial_";
   if (FiducialCutEtaonly) prefix = prefix + "EtaOnly_";
+  if (FiducialCutCF) prefix = prefix + "CF_";
   TString nameOutput = "AI_Z_"+prefix+outputName+mode+".root";
   TFile* Output = new TFile(nameOutput);
   bool isf = true;
@@ -256,6 +258,10 @@ void AIZ(bool isY=false){
   TH2D *hZptVsEta_p = new TH2D("zPt_vs_eta_p", ";p_{T}(Z) [GeV];#eta(e^{+})", zPtBins, 0., zPtMax, etaBins, etaMin, etaMax);
   TH2D *hZYVsPt_m   = new TH2D("zY_vs_pt_m",   ";|y(Z)|;p_{T}(e^{-}) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
   TH2D *hZYVsPt_p   = new TH2D("zY_vs_pt_p",   ";|y(Z)|;p_{T}(e^{+}) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
+  TH2D *hZYVsPt_leading = new TH2D("zY_vs_pt_leading", ";|y(Z)|;p_{T}(leading l) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
+  TH2D *hZYVsPt_subleading = new TH2D("zY_vs_pt_subleading", ";|y(Z)|;p_{T}(subleading l) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
+  TH2D *hZYVsEta_leading = new TH2D("zY_vs_eta_leading", ";|y(Z)|;#eta(leading l)", zYBins/2, 0., zYMax, etaBins, etaMin, etaMax);
+  TH2D *hZYVsEta_subleading = new TH2D("zY_vs_eta_subleading", ";|y(Z)|;#eta(subleading l)", zYBins/2, 0., zYMax, etaBins, etaMin, etaMax);
   TH2D *hZptVsCostheta = new TH2D("zPt_vs_costheta", ";p_{T}(Z) [GeV];cos#theta_{CS}", zPtBins, 0., zPtMax, 50, -1., 1.);
   TH2D *hZptVsPhi = new TH2D("zPt_vs_phi", ";p_{T}(Z) [GeV];#phi_{CS}", zPtBins, 0., zPtMax, phiBins, phiMin, phiMax);
   TH2D *hZYVsCostheta = new TH2D("zY_vs_costheta", ";|y(Z)|;cos#theta_{CS}", zYBins/2, 0., zYMax, 50, -1., 1.);
@@ -383,7 +389,16 @@ void AIZ(bool isY=false){
                       << "; eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
                 continue;
               }
+            } else if (FiducialCutCF)   {
+            // Apply only CF eta cuts for fiducial selection
+              if (fabs(lepEtaTruth1) > 2.5 && fabs(lepEtaTruth0) > 2.5) {
+                // Skip events where leptons do not pass eta cuts
+                if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails eta-only fiducial cuts: eta_el = " << lepEtaTruth1
+                      << "; eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
+                continue;
+              }
             } else {
+              // Apply full fiducial cuts on both pT and eta
             if (pt_el < 25.0 || fabs(lepEtaTruth1) > 2.5 || pt_pos < 25.0 || fabs(lepEtaTruth0) > 2.5) {
               // Skip events where leptons do not pass fiducial cuts
              if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails fiducial cuts: pt_el = " << pt_el << " GeV, eta_el = " << lepEtaTruth1
@@ -490,6 +505,10 @@ void AIZ(bool isY=false){
     hZptVsEta_p->Fill(z.Pt(), ep.Eta(), weight);
     hZYVsPt_m->Fill(fabs(z.Rapidity()), pt_el, weight);
     hZYVsPt_p->Fill(fabs(z.Rapidity()), pt_pos, weight);
+    hZYVsPt_leading->Fill(fabs(z.Rapidity()), pt_leading, weight);
+    hZYVsPt_subleading->Fill(fabs(z.Rapidity()), pt_subleading, weight);
+    hZYVsEta_leading->Fill(fabs(z.Rapidity()), eta_leading, weight);
+    hZYVsEta_subleading->Fill(fabs(z.Rapidity()), eta_subleading, weight);
 
     // Additional truth-level angular correlations
     if (ifTrueOnly) {
@@ -711,6 +730,10 @@ void AIZ(bool isY=false){
   hZptVsEta_p->Write();
   hZYVsPt_m->Write();
   hZYVsPt_p->Write();
+  hZYVsPt_leading->Write();
+  hZYVsPt_subleading->Write();
+  hZYVsEta_leading->Write();
+  hZYVsEta_subleading->Write();
   hCosLneg0_5->Write();
   hCosLneg5_20->Write();
   hCosLneg20_40->Write();

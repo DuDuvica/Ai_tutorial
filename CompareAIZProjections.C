@@ -22,16 +22,19 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   bool isFiducial = false;
  bool EtaOnly = false;
  bool CFonly = false;
+ bool CFonlyEta = false;
  bool CCCF = false;
 
   if ( inFile.Contains("Fiducial") ) {
     isFiducial = true;
-    EtaOnly = inFile.Contains("EtaOnly");
-    CFonly = inFile.Contains("CFonly");
+    CFonlyEta = inFile.Contains("CFonlyEta");
+    EtaOnly = !CFonlyEta && inFile.Contains("EtaOnly");
+    CFonly = !CFonlyEta && inFile.Contains("CFonly");
     CCCF = inFile.Contains("CCCF");
     std::cout << "Comparing projections from " << inFile
               << " with fiducial cuts applied. ETA only is " << EtaOnly
               << " CFonly is: " << CFonly
+              << " CFonlyEta is: " << CFonlyEta
               << " CCCF is: " << CCCF << std::endl;
    } else {
     isFiducial = false;
@@ -45,6 +48,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   TH2D* hDEtaSub   = static_cast<TH2D*>(f->Get("deltaEta_vs_subleadingPt_ll"));
   TH2D* hDEtaCosth = static_cast<TH2D*>(f->Get("deltaEta_vs_costh_ll"));
   TH2D* hPtEpVsEm  = static_cast<TH2D*>(f->Get("pt_ep_vs_em"));
+  TH2D* hEtaLeadVsSublead = static_cast<TH2D*>(f->Get("eta_eleading_vs_esubleading"));
   TH2D* hPtLeadVsSublead = static_cast<TH2D*>(f->Get("pt_leading_vs_subleading"));
   TH2D* hBosonVsObsM = static_cast<TH2D*>(f->Get(isY ? "zY_vs_pt_m" : "zPt_vs_eta_m"));
   TH2D* hBosonVsObsP = static_cast<TH2D*>(f->Get(isY ? "zY_vs_pt_p" : "zPt_vs_eta_p"));
@@ -70,6 +74,32 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   }
 
   gStyle->SetOptStat(0);
+
+  TCanvas* cEtaLeadSublead2D = nullptr;
+  TCanvas* cPtLeadSublead2D = nullptr;
+
+  if (hEtaLeadVsSublead) {
+    cEtaLeadSublead2D = new TCanvas("c_eta_eleading_vs_esubleading_2d", "|#eta(leading)| vs |#eta(subleading)|", 900, 800);
+    cEtaLeadSublead2D->cd();
+    cEtaLeadSublead2D->SetLogz();
+    cEtaLeadSublead2D->SetGridx();
+    cEtaLeadSublead2D->SetGridy();
+    hEtaLeadVsSublead->SetTitle("|#eta(e_{leading})| vs |#eta(e_{subleading})|;|#eta(e_{leading})|;|#eta(e_{subleading})|");
+    hEtaLeadVsSublead->Draw("colz");
+    hEtaLeadVsSublead->SetStats(0);
+
+ 
+  } else {
+    std::cout << "WARNING: missing eta_eleading_vs_esubleading. Skipping 2D eta leading/subleading canvas." << std::endl;
+  }
+
+  cPtLeadSublead2D = new TCanvas("c_pt_leading_vs_subleading_2d", "p_{T}(leading) vs p_{T}(subleading)", 900, 800);
+  cPtLeadSublead2D->cd();
+  cPtLeadSublead2D->SetLogz();
+  cPtLeadSublead2D->SetGridx();
+  cPtLeadSublead2D->SetGridy();
+  hPtLeadVsSublead->SetTitle("p_{T}(leading) vs p_{T}(subleading);p_{T}(leading l) [GeV];p_{T}(subleading l) [GeV]");
+  hPtLeadVsSublead->Draw("colz");
 
   // 1) Compare cos(theta_CS) projections from leading/subleading maps.
   TH1D* pCosthLead = hCosthLead->ProjectionY("pCosth_leading");
@@ -855,11 +885,14 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   // Save comparison plots next to the input file for quick checks.
   TString outPrefix;
   if (isFiducial) outPrefix += "fiducial_";
+  if (CFonlyEta) outPrefix += "cfonlyeta_";
   if (EtaOnly) outPrefix += "etaonly_";
   if (CFonly) outPrefix += "cfonly_";
   if (CCCF) outPrefix += "cccf_";
   auto prefixed = [&](const char* name) { return outPrefix + name; };
 
+  if (cEtaLeadSublead2D) cEtaLeadSublead2D->SaveAs(prefixed("compare_2D_eta_eleading_vs_esubleading.pdf").Data());
+  cPtLeadSublead2D->SaveAs(prefixed("compare_2D_pt_leading_vs_subleading.pdf").Data());
   cCosth->SaveAs(prefixed("compare_projection_costh_lead_vs_sublead.pdf").Data());
   cDEtaPt->SaveAs(prefixed("compare_projection_deltaeta_lead_vs_sublead.pdf").Data());
   cDEtaCosth->SaveAs(prefixed("compare_projection_deltaeta_vs_costh.pdf").Data());
@@ -883,6 +916,8 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   if (cEtaLeadSubleadInYSlices) cEtaLeadSubleadInYSlices->SaveAs(prefixed("compare_projection_overlay_eta_lead_vs_sublead_in_yZ_slices.pdf").Data());
 
   std::cout << "Saved plots:" << std::endl;
+  if (cEtaLeadSublead2D) std::cout << "  " << prefixed("compare_2D_eta_eleading_vs_esubleading.pdf") << std::endl;
+  std::cout << "  " << prefixed("compare_2D_pt_leading_vs_subleading.pdf") << std::endl;
   std::cout << "  " << prefixed("compare_projection_costh_lead_vs_sublead.pdf") << std::endl;
   std::cout << "  " << prefixed("compare_projection_deltaeta_lead_vs_sublead.pdf") << std::endl;
   std::cout << "  " << prefixed("compare_projection_deltaeta_vs_costh.pdf") << std::endl;

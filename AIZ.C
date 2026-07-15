@@ -20,9 +20,10 @@ bool test = false; // set to true for quick test with limited events; set to fal
 bool override = false; // set to true to overwrite existing output file without prompt
 bool normXS = true;
 bool ifTrueOnly=true;
-bool FiducialCut = false; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutEtaonly = false ;
-bool FiducialCutCF = false ;
+bool FiducialCutCCCF = false ;
+bool FiducialCutCFonly = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 
 // Macro to plot Ai coefficient from Sherpa and Powheg Z samples
 void AIZ(bool isY=false){
@@ -33,9 +34,10 @@ void AIZ(bool isY=false){
   cout << " ifTrueOnly: " << ifTrueOnly << endl;
   cout << " FiducialCut: " << FiducialCut << endl;
   cout << " FiducialCutEtaonly: " << FiducialCutEtaonly << endl;
-  cout << " FiducialCutCF: " << FiducialCutCF << endl;
-  if ( (FiducialCutEtaonly || FiducialCutCF) && !FiducialCut) {
-    cout << " ERROR: FiducialCutEtaonly or FiducialCutCF cannot be true if FiducialCut is false. Please set FiducialCut to true to apply eta-only fiducial cuts." << endl;
+  cout << " FiducialCutCCCF: " << FiducialCutCCCF << endl;
+  cout << " FiducialCutCFonly: " << FiducialCutCFonly << endl;
+  if ( (FiducialCutEtaonly || FiducialCutCCCF || FiducialCutCFonly) && !FiducialCut) {
+    cout << " ERROR: FiducialCutEtaonly or FiducialCutCCCF or FiducialCutCFonly cannot be true if FiducialCut is false. Please set FiducialCut to true to apply eta-only fiducial cuts." << endl;
     return;
   }
 
@@ -136,7 +138,8 @@ void AIZ(bool isY=false){
   TString prefix = ifTrueOnly ? "Truth_" : "";
   if ( FiducialCut ) prefix = prefix + "Fiducial_";
   if (FiducialCutEtaonly) prefix = prefix + "EtaOnly_";
-  if (FiducialCutCF) prefix = prefix + "CF_";
+  if (FiducialCutCCCF) prefix = prefix + "CCCF_";
+  if (FiducialCutCFonly) prefix = prefix + "CFonly_";
   TString nameOutput = "AI_Z_"+prefix+outputName+mode+".root";
   TFile* Output = new TFile(nameOutput);
   bool isf = true;
@@ -248,7 +251,7 @@ void AIZ(bool isY=false){
 
   // Lepton-lepton eta/phi correlations
   TH2D *hEta_ep_vs_em = new TH2D("eta_ep_vs_em", ";#eta(e^{+});#eta(e^{-})", etaBins, etaMin, etaMax, etaBins, etaMin, etaMax);
-  TH2D *hEta_eleading_vs_esubleading = new TH2D("eta_eleading_vs_esubleading", ";#eta(e_{leading});#eta(e_{subleading})", etaBins/2, 0, etaMax, etaBins/2, 0, etaMax);
+  TH2D *hEta_eleading_vs_esubleading = new TH2D("eta_eleading_vs_esubleading", ";|#eta(e_{leading})|;|#eta(e_{subleading})|", etaBins/2, 0, etaMax, etaBins/2, 0, etaMax);
   TH2D *hPhi_ep_vs_em = new TH2D("phi_ep_vs_em", ";#phi(e^{+});#phi(e^{-})", phiBins, phiMin, phiMax, phiBins, phiMin, phiMax);
   TH2D *hPt_ep_vs_em = new TH2D("pt_ep_vs_em", ";p_{T}(e^{+}) [GeV];p_{T}(e^{-}) [GeV]", pt2dBins, 0., pt2dMax, pt2dBins, 0., pt2dMax);
   TH2D *hPt_leading_vs_subleading = new TH2D("pt_leading_vs_subleading", ";p_{T}(leading l) [GeV];p_{T}(subleading l) [GeV]", pt2dBins, 0., pt2dMax, pt2dBins, 0., pt2dMax);
@@ -389,16 +392,31 @@ void AIZ(bool isY=false){
                       << "; eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
                 continue;
               }
-            } else if (FiducialCutCF)   {
-            // Apply only CF eta cuts for fiducial selection
-              if (fabs(lepEtaTruth1) > 2.5 && fabs(lepEtaTruth0) > 2.5) {
-                // Skip events where leptons do not pass eta cuts
-                if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails eta-only fiducial cuts: eta_el = " << lepEtaTruth1
-                      << "; eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
+            } else if (FiducialCutCCCF)   {
+            // CF fiducial selection:
+            // both leptons must satisfy pT > 25 GeV and at least one lepton must be central (|eta| < 2.5).
+            // Boundary |eta| = 2.5 is treated as CF (forward).
+              if (pt_el < 25.0 || pt_pos < 25.0 || (fabs(lepEtaTruth1) >= 2.5 && fabs(lepEtaTruth0) >= 2.5)) {
+                if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails CF fiducial cuts: pt_el = " << pt_el
+                      << " GeV, eta_el = " << lepEtaTruth1 << "; pt_pos = " << pt_pos
+                      << " GeV, eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
                 continue;
               }
-            } else {
-              // Apply full fiducial cuts on both pT and eta
+            } else if (FiducialCutCFonly) {
+              // CF-only fiducial selection:
+              // both leptons must satisfy pT > 25 GeV and the pair must be one central
+              // lepton (|eta| < 2.5) plus one forward lepton (|eta| >= 2.5).
+              if (pt_el < 25.0 || pt_pos < 25.0 ||
+                  !((fabs(lepEtaTruth1) < 2.5 && fabs(lepEtaTruth0) >= 2.5) ||
+                    (fabs(lepEtaTruth1) >= 2.5 && fabs(lepEtaTruth0) < 2.5))) {
+                if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails CF-only fiducial cuts: pt_el = " << pt_el
+                      << " GeV, eta_el = " << lepEtaTruth1 << "; pt_pos = " << pt_pos
+                      << " GeV, eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
+                continue;
+              }
+            }
+             else {
+               // Apply full fiducial cuts on both pT and eta
             if (pt_el < 25.0 || fabs(lepEtaTruth1) > 2.5 || pt_pos < 25.0 || fabs(lepEtaTruth0) > 2.5) {
               // Skip events where leptons do not pass fiducial cuts
              if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails fiducial cuts: pt_el = " << pt_el << " GeV, eta_el = " << lepEtaTruth1

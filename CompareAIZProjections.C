@@ -5,6 +5,7 @@
 #include "TLegend.h"
 #include "TPad.h"
 #include "TLine.h"
+#include "TLatex.h"
 #include "TString.h"
 #include "TStyle.h"
 #include <iostream>
@@ -18,13 +19,18 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   }
   bool isFiducial = false;
  bool EtaOnly = false;
- bool CF = false;
+ bool CFonly = false;
+ bool CCCF = false;
 
   if ( inFile.Contains("Fiducial") ) {
     isFiducial = true;
     EtaOnly = inFile.Contains("EtaOnly");
-    CF = inFile.Contains("CF");
-    std::cout << "Comparing projections from " << inFile << " with fiducial cuts applied. ETA only is  " << EtaOnly << " CF is: " << CF << std::endl;
+    CFonly = inFile.Contains("CFonly");
+    CCCF = inFile.Contains("CCCF");
+    std::cout << "Comparing projections from " << inFile
+              << " with fiducial cuts applied. ETA only is " << EtaOnly
+              << " CFonly is: " << CFonly
+              << " CCCF is: " << CCCF << std::endl;
    } else {
     isFiducial = false;
   }
@@ -779,6 +785,20 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
         legPtInY->AddEntry(pPtLeadInY, "p_{T}(leading)", "l");
         legPtInY->AddEntry(pPtSubInY, "p_{T}(subleading)", "l");
         legPtInY->Draw();
+
+        // Annotate mean pT values in each |y(Z)| slice panel.
+        TLatex* meanText = new TLatex();
+        meanText->SetNDC();
+        meanText->SetTextSize(0.035);
+        meanText->SetTextFont(42);
+        const TString leadMeanLabel = (pPtLeadInY->GetEntries() > 0)
+                                      ? Form("<#it{p}_{T}> lead = %.1f GeV", pPtLeadInY->GetMean())
+                                      : "<#it{p}_{T}> lead = n/a";
+        const TString subMeanLabel = (pPtSubInY->GetEntries() > 0)
+                                     ? Form("<#it{p}_{T}> sublead = %.1f GeV", pPtSubInY->GetMean())
+                                     : "<#it{p}_{T}> sublead = n/a";
+        meanText->DrawLatex(0.48, 0.66, leadMeanLabel);
+        meanText->DrawLatex(0.48, 0.60, subMeanLabel);
       }
     } else {
       std::cout << "WARNING: missing zY_vs_pt_leading and/or zY_vs_pt_subleading. Skipping pT(leading/subleading) in Y(Z) slices." << std::endl;
@@ -834,7 +854,8 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   TString outPrefix;
   if (isFiducial) outPrefix += "fiducial_";
   if (EtaOnly) outPrefix += "etaonly_";
-  if (CF) outPrefix += "cf_";
+  if (CFonly) outPrefix += "cfonly_";
+  if (CCCF) outPrefix += "cccf_";
   auto prefixed = [&](const char* name) { return outPrefix + name; };
 
   cCosth->SaveAs(prefixed("compare_projection_costh_lead_vs_sublead.pdf").Data());

@@ -170,9 +170,10 @@ Inside ROOT:
 override = true;
 test = false;            // full statistics
 ifTrueOnly = true;
-FiducialCut = false;
+FiducialCut = true;
 FiducialCutEtaonly = false;
-FiducialCutCF = true;
+FiducialCutCCCF = false;
+FiducialCutCFonly = true;
 normXS = true;
 AIZ(true);
 ```

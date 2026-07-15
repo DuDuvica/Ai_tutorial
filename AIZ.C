@@ -13,6 +13,8 @@
 #include <cmath>
 #include <vector>
 // Draft Z version based on AIW.C (Collins-Soper angles, A0-A7)
+// To note that this Macro not only produce Ai form Phowegh or Sherpa MC but also create histogram for Kinematic studies.
+// Ai are relevant only in the full-phacespace instead Kinematic plots are interesting also while applying Fiducial cut on the lepton. So a functionality FiducialCut is added to allow comparing basic Kinematic distibution wile applying on not fiducial cut on the leptons.
 using namespace std;
 
 bool sherpa = false;

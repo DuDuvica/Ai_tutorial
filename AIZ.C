@@ -23,7 +23,7 @@ bool ifTrueOnly=true;
 bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutEtaonly = false ;
 bool FiducialCutCCCF = false ;
-bool FiducialCutCFonly = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCutCFonly = true ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 
 // Macro to plot Ai coefficient from Sherpa and Powheg Z samples
 void AIZ(bool isY=false){
@@ -416,7 +416,7 @@ void AIZ(bool isY=false){
               }
             }
              else {
-               // Apply full fiducial cuts on both pT and eta
+               // Apply full fiducial cuts (CC) on both pT and eta
             if (pt_el < 25.0 || fabs(lepEtaTruth1) > 2.5 || pt_pos < 25.0 || fabs(lepEtaTruth0) > 2.5) {
               // Skip events where leptons do not pass fiducial cuts
              if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails fiducial cuts: pt_el = " << pt_el << " GeV, eta_el = " << lepEtaTruth1

@@ -19,7 +19,7 @@
 using namespace std;
 
 bool sherpa = false;
-bool test = false; // set to true for quick test with limited events; set to false for full run
+bool test = true; // set to true for quick test with limited events; set to false for full run
 bool override = false; // set to true to overwrite existing output file without prompt
 bool normXS = true;
 bool ifTrueOnly = true;
@@ -76,7 +76,7 @@ struct Moment {
 }
 
 // Analytic basis plot: callable without any ntuple. Load TLVUtils.cxx first.
-TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.png") {
+TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.pdf") {
   TH2D *map = new TH2D("P6_polynomial", ";cos#theta_{CS};#phi_{CS};P_{6}",
                        160, -1., 1., 160, -M_PI, M_PI);
   map->SetDirectory(nullptr);
@@ -777,7 +777,7 @@ void AIZ(bool isY=false){
   }
   TString plotPrefix = nameOutput;
   plotPrefix.ReplaceAll(".root", "");
-  TCanvas *cP6Polynomial = AIZPlotP6((plotPrefix+"_P6_polynomial.png").Data());
+  TCanvas *cP6Polynomial = AIZPlotP6((plotPrefix+"_P6_polynomial.pdf").Data());
   cP6Polynomial->Write();
   TCanvas *cP6 = new TCanvas("c_P6_observables", "P6-sensitive observables", 1400, 1000);
   cP6->Divide(3,3);
@@ -793,7 +793,7 @@ void AIZ(bool isY=false){
     cP6->cd(7+j); p6Moments[j]->mean->SetStats(false); p6Moments[j]->mean->Draw("E");
   }
   cP6->Write();
-  cP6->SaveAs((plotPrefix+"_P6_observables.png").Data());
+  cP6->SaveAs((plotPrefix+"_P6_observables.pdf").Data());
   TCanvas *cP6Sensitivity = new TCanvas("c_P6_sensitivity", "P6 asymmetry and lever arm", 1600, 800);
   cP6Sensitivity->Divide(4,2);
   for (int pad=1; pad<=8; ++pad) {
@@ -805,7 +805,7 @@ void AIZ(bool isY=false){
     cP6Sensitivity->cd(5+j); p6LeverArms[j]->mean->SetStats(false); p6LeverArms[j]->mean->Draw("E");
   }
   cP6Sensitivity->Write();
-  cP6Sensitivity->SaveAs((plotPrefix+"_P6_sensitivity.png").Data());
+  cP6Sensitivity->SaveAs((plotPrefix+"_P6_sensitivity.pdf").Data());
 
   A0->Divide(Xsw);
   A1->Divide(Xsw);

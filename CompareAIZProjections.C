@@ -11,7 +11,7 @@
 #include <iostream>
 #include <algorithm>
 
-// MAcro to post Processing ooutput from AIZ.C or AIW.C 
+// MAcro to post Processing ooutput from AIZ.C or AIW.C ( in principle could be run both locally and on NAF )
 
 void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningPowheg_Y_NormXsec.root", bool isY = false) {
   TFile* f = TFile::Open(inFile, "READ");

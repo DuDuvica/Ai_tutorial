@@ -9,12 +9,12 @@ root -l -b -q \
 	-e '.L TLVUtils.cxx' \
 	-e '.L AIZ.C' \
 	-e 'test = false;' \
-	-e 'override = true;' \
+	-e 'override = false;' \
 	-e 'appendPolynomialOutputs = true;' \
-	-e 'FiducialCut = true;' \
+	-e 'FiducialCut = false;' \
 	-e 'FiducialCutEtaonly = false;' \
 	-e 'FiducialCutCCCF = false;' \
-	-e 'FiducialCutCFonly = true;' \
+	-e 'FiducialCutCFonly = false;' \
 	-e 'AIZ(true, 0);' \
 	-e 'AIZ(true, 1);' \
 	-e 'AIZ(true, 2);' \

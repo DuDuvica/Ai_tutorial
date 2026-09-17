@@ -146,6 +146,41 @@ TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.pdf", TH2D* selected
   return AIZPlotPolynomial(6, imageName, selectedMap);
 }
 
+// Selected-event angular map and projections. Load TLVUtils.cxx first.
+TCanvas* AIZPlotPolynomialSelected(int index, TH2D* selectedMap,
+                                    const char* imageName="AIZ_P6_polynomial_selected.pdf") {
+  if (index < 0 || index > 7 || !selectedMap) return nullptr;
+
+  TH1D *costhetaProjection = selectedMap->ProjectionX(
+      Form("P%d_selected_costheta", index), 1, selectedMap->GetNbinsY(), "e");
+  TH1D *phiProjection = selectedMap->ProjectionY(
+      Form("P%d_selected_phi", index), 1, selectedMap->GetNbinsX(), "e");
+  costhetaProjection->SetTitle(Form("Selected P_{%d};cos#theta_{CS};Weighted events", index));
+  phiProjection->SetTitle(Form("Selected P_{%d};#phi_{CS};Weighted events", index));
+  costhetaProjection->SetDirectory(nullptr);
+  phiProjection->SetDirectory(nullptr);
+  costhetaProjection->SetLineColor(kBlue+1);
+  phiProjection->SetLineColor(kRed+1);
+  costhetaProjection->SetLineWidth(2);
+  phiProjection->SetLineWidth(2);
+  costhetaProjection->SetStats(false);
+  phiProjection->SetStats(false);
+
+  TCanvas *canvas = new TCanvas(Form("c_P%d_polynomial_selected", index),
+      Form("Selected P%d angular distribution", index), 1800, 600);
+  canvas->Divide(3, 1);
+  canvas->cd(1)->SetRightMargin(0.17);
+  selectedMap->SetStats(false);
+  selectedMap->SetTitle(Form("Selected P_{%d};cos#theta_{CS};#phi_{CS};Weighted P_{%d}", index, index));
+  selectedMap->Draw("COLZ");
+  canvas->cd(2);
+  costhetaProjection->Draw("E");
+  canvas->cd(3);
+  phiProjection->Draw("E");
+  if (imageName && imageName[0]) canvas->SaveAs(imageName);
+  return canvas;
+}
+
 // Macro to plot Ai coefficient from Sherpa and Powheg Z samples
 void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
 
@@ -463,9 +498,9 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
       Form(";|P_{%d}|;Weighted events", polynomialIndex), 50, 0., 1.000001);
     TH2D *hPolynomialForwardCharge = new TH2D(polynomialLabel+"_vs_forwardCharge_CF",
       Form(";Charge of forward lepton (CF only);P_{%d}", polynomialIndex),
-      2, -2., 2., 100, -1.000001, 1.000001);
+      3, -1.5, 3.5, 100, -1.000001, 1.000001);
     TH2D *hPolynomialSelectedAngles = new TH2D(polynomialLabel+"_selected_angles",
-      ";cos#theta_{CS};#phi_{CS};Selected weighted events", 160, -1., 1., 160, 0., 2.*M_PI);
+      Form(";cos#theta_{CS};#phi_{CS};Selected weighted P_{%d}", polynomialIndex), 160, -1., 1., 160, 0., 2.*M_PI);
     hPolynomial->Sumw2(); hAbsPolynomial->Sumw2(); hPolynomialForwardCharge->Sumw2();
     hPolynomialSelectedAngles->Sumw2();
     const char* polynomialAxes[] = {"deltaEta", "zPt", "absZY", "acoplanarity"};
@@ -611,7 +646,7 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     }
     ZMass->Fill(z.M(), mcEventWeight);
 
-    if (i%10000 == 0) {
+    if (i%100000 == 0) {
       cout << "Processed " << i <<"/" << N << " events" << endl;
       cout << " Z pT is: " << z.Pt() << " Z rapidity is: " << z.Rapidity() << endl;
       cout << " lepton 1 (neg) pT: " << em.Pt() << " eta: " << em.Eta() << " phi: " << em.Phi() << endl;
@@ -626,7 +661,12 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     // We pass em (negative lepton) as lep1 with charge1 = -1 and ep as lep2.
     double costheta = 0.0;
     double phi = 0.0;
-    TLVUtils::getCSFAngles(em, -1, ep, ebeamGeV, costheta, phi); 
+    TLVUtils::getCSFAngles(em, -1, ep, ebeamGeV, costheta, phi);
+
+    // Build the angular basis with TLVUtils so the polynomial definitions are
+    // exactly shared with the common utility implementation.
+    std::vector<double> aipols;
+    TLVUtils::getAiPolynoms(costheta, phi, aipols);
 
     // Guard against non-finite outputs before filling histograms.
     if (!std::isfinite(costheta) || !std::isfinite(phi)) continue;
@@ -636,7 +676,7 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     const double phiCSTruthWrapped = TVector2::Phi_0_2pi(phiCSTruth);
 
     Zmass->Fill(z.M(), weight);
-    hPolynomialSelectedAngles->Fill(costheta, phi, weight);
+    hPolynomialSelectedAngles->Fill(costheta, phi, aipols[polynomialIndex] * weight);
     hctheta->Fill(costheta, weight);
     hctheta_truth->Fill(cosThetaCSTruth, weight);
     hphi_truth->Fill(phiCSTruthWrapped, weight);
@@ -742,11 +782,6 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
       Xsw->Fill(z.Pt(), weight);
     }
 
-    // Build the angular basis with TLVUtils so the polynomial definitions are
-    // exactly shared with the common utility implementation.
-    std::vector<double> aipols;
-    TLVUtils::getAiPolynoms(costheta, phi, aipols);
-
     // At zero Z transverse momentum the hadron plane (and phi) is undefined.
     // Exclude it from the new diagnostics and count it explicitly.
     if (z.Pt() > 1.e-9 && std::isfinite(weight)) {
@@ -846,6 +881,10 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   TCanvas *cPolynomial = AIZPlotPolynomial(polynomialIndex,
       (plotPrefix+polynomialSuffix+"_polynomial.pdf").Data(), hPolynomialSelectedAngles);
   cPolynomial->Write("", TObject::kOverwrite);
+    TCanvas *cPolynomialSelected = AIZPlotPolynomialSelected(polynomialIndex,
+      hPolynomialSelectedAngles,
+      (plotPrefix+polynomialSuffix+"_polynomial_selected.pdf").Data());
+    cPolynomialSelected->Write("", TObject::kOverwrite);
   TCanvas *cObservables = new TCanvas(Form("c_P%d_observables", polynomialIndex),
       Form("P%d-sensitive observables", polynomialIndex), 1400, 1000);
   cObservables->Divide(3,3);

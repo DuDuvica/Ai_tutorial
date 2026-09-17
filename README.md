@@ -63,6 +63,7 @@ conda run -n MAC root -l -b -q -e '.L TLVUtils.cxx' -e '.L AIZ.C' -e 'test=true;
 ### Notes
 
 - `AIZ.C` now includes `TLVUtils.h` and calls `TLVUtils::getCSFAngles` and `TLVUtils::getAiPolynoms`, so load `TLVUtils.cxx` before running `AIZ`.
+- **Collins-Soper azimuth convention:** `phi_CS` is stored and plotted in the ATLAS range $$[0,2\pi)$$. An equivalent signed value in $[-\pi,\pi)$ is converted by adding $2\pi$ when it is negative. This convention applies only to `phi_CS`; ordinary laboratory lepton `phi` values retain ROOT's signed convention.
 - In this environment, interpreted loading is reliable. ACLiC mode with `+` (`.L TLVUtils.cxx+`) may fail due a local shared-library loading issue on macOS/conda.
 
 ## Build/Run with Makefile

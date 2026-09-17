@@ -8,6 +8,7 @@
 #include "TPad.h"
 #include <iostream>
 #include "TLorentzVector.h"
+#include "TVector2.h"
 #include "TVector3.h"
 #include "TLVUtils.h"
 #include <cmath>
@@ -78,7 +79,7 @@ struct Moment {
 // Analytic basis plot: callable without any ntuple. Load TLVUtils.cxx first.
 TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.pdf") {
   TH2D *map = new TH2D("P6_polynomial", ";cos#theta_{CS};#phi_{CS};P_{6}",
-                       160, -1., 1., 160, -M_PI, M_PI);
+                       160, -1., 1., 160, 0., 2.*M_PI);
   map->SetDirectory(nullptr);
   std::vector<double> pols;
   for (int ix=1; ix<=map->GetNbinsX(); ++ix)
@@ -95,7 +96,7 @@ TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.pdf") {
   canvas->cd(2);
   TLegend *legend = new TLegend(0.57,0.72,0.88,0.88);
   for (int k=0; k<3; ++k) {
-    const double phi = (k==0 ? M_PI/2. : (k==1 ? -M_PI/2. : 0.));
+    const double phi = (k==0 ? M_PI/2. : (k==1 ? 3.*M_PI/2. : 0.));
     TH1D *slice = new TH1D(Form("P6_slice_%d", k),
         "P_{6} = sin(2#theta) sin#phi;cos#theta_{CS};P_{6}", 200, -1., 1.);
     slice->SetDirectory(nullptr);
@@ -107,7 +108,7 @@ TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.pdf") {
     slice->SetLineColor(k==0 ? kRed+1 : (k==1 ? kBlue+1 : kBlack));
     slice->SetLineWidth(2);
     slice->Draw(k==0 ? "HIST" : "HIST SAME");
-    legend->AddEntry(slice, k==0 ? "#phi = +#pi/2" : (k==1 ? "#phi = -#pi/2" : "#phi = 0"), "l");
+    legend->AddEntry(slice, k==0 ? "#phi = #pi/2" : (k==1 ? "#phi = 3#pi/2" : "#phi = 0"), "l");
   }
   legend->Draw();
   if (imageName && imageName[0]) canvas->SaveAs(imageName);
@@ -296,8 +297,8 @@ void AIZ(bool isY=false){
 
   TH1D *hctheta = new TH1D("Costheta", "Costheta", 100, -1., 1.0);
   TH1D *hctheta_truth = new TH1D("CosthetaTruth", "CosthetaTruth", 100, -1., 1.0);
-  TH1D *hphi = new TH1D("phi", "phi", 100, -M_PI, M_PI);
-  TH1D *hphi_truth = new TH1D("phiTruth", "phiTruth", 100, -M_PI, M_PI);
+  TH1D *hphi = new TH1D("phi", "phi", 100, 0., 2.*M_PI);
+  TH1D *hphi_truth = new TH1D("phiTruth", "phiTruth", 100, 0., 2.*M_PI);
   TH1D *Zmass = new TH1D("Zmass", ";m_{ll} [GeV];Events", 120, 60., 120.);
   TH1D *Xs = new TH1D("Xs", "Xs", Nbins-1, bins);
   TH1D *A0 = new TH1D("A0", "A0", Nbins-1, bins);
@@ -320,6 +321,8 @@ void AIZ(bool isY=false){
   const int phiBins = 64;
   const double phiMin = -M_PI;
   const double phiMax = M_PI;
+  const double phiCSMin = 0.;
+  const double phiCSMax = 2.*M_PI;
   const int zPtBins = 60;
   const double zPtMax = 300.;
   const int zYBins = 50;
@@ -333,10 +336,10 @@ void AIZ(bool isY=false){
                              pt2dBins, 0., pt2dMax, 50, -1., 1.);
   TH2D *hPhiVspt_el = new TH2D("phiCSTruth_vs_lepPtNeg",
                              ";p_{T}^{truth}(e^{-}) [GeV];#phi_{CS}^{truth}",
-                             pt2dBins, 0., pt2dMax, 50, -M_PI, M_PI);
+                             pt2dBins, 0., pt2dMax, 50, phiCSMin, phiCSMax);
   TH2D *hPhiVspt_pos = new TH2D("phiCSTruth_vs_lepPtPos",
                              ";p_{T}^{truth}(e^{+}) [GeV];#phi_{CS}^{truth}",
-                             pt2dBins, 0., pt2dMax, 50, -M_PI, M_PI);
+                             pt2dBins, 0., pt2dMax, 50, phiCSMin, phiCSMax);
 
   // Lepton-lepton eta/phi correlations
   TH2D *hEta_ep_vs_em = new TH2D("eta_ep_vs_em", ";#eta(e^{+});#eta(e^{-})", etaBins, etaMin, etaMax, etaBins, etaMin, etaMax);
@@ -363,9 +366,9 @@ void AIZ(bool isY=false){
   TH2D *hZYVsEta_forward = new TH2D("zY_vs_eta_forward", ";|y(Z)|;|#eta(forward l)|", zYBins/2, 0., zYMax, etaBins/2, 0, etaMax);
   TH2D *hZYVsEta_central = new TH2D("zY_vs_eta_central", ";|y(Z)|;|#eta(central l)|", zYBins/2, 0., zYMax, etaBins/2, 0, etaMax);
   TH2D *hZptVsCostheta = new TH2D("zPt_vs_costheta", ";p_{T}(Z) [GeV];cos#theta_{CS}", zPtBins, 0., zPtMax, 50, -1., 1.);
-  TH2D *hZptVsPhi = new TH2D("zPt_vs_phi", ";p_{T}(Z) [GeV];#phi_{CS}", zPtBins, 0., zPtMax, phiBins, phiMin, phiMax);
+  TH2D *hZptVsPhi = new TH2D("zPt_vs_phi", ";p_{T}(Z) [GeV];#phi_{CS}", zPtBins, 0., zPtMax, phiBins, phiCSMin, phiCSMax);
   TH2D *hZYVsCostheta = new TH2D("zY_vs_costheta", ";|y(Z)|;cos#theta_{CS}", zYBins/2, 0., zYMax, 50, -1., 1.);
-  TH2D *hZYVsPhi = new TH2D("zY_vs_phi", ";|y(Z)|;#phi_{CS}", zYBins/2, 0., zYMax, phiBins, phiMin, phiMax);
+  TH2D *hZYVsPhi = new TH2D("zY_vs_phi", ";|y(Z)|;#phi_{CS}", zYBins/2, 0., zYMax, phiBins, phiCSMin, phiCSMax);
 
   // Leading and subleading lepton distributions
   TH2D *hEtaVsPt_leading = new TH2D("eta_vs_pt_leading", ";p_{T}(lead) [GeV];#eta(lead)", pt2dBins, 0., pt2dMax, etaBins, etaMin, etaMax);
@@ -582,11 +585,12 @@ void AIZ(bool isY=false){
 
     double weight = 1.0;
     if (normXS) weight = mcEventWeight; //weight *= norm;
+    const double phiCSTruthWrapped = TVector2::Phi_0_2pi(phiCSTruth);
 
     Zmass->Fill(z.M(), weight);
     hctheta->Fill(costheta, weight);
     hctheta_truth->Fill(cosThetaCSTruth, weight);
-    hphi_truth->Fill(phiCSTruth, weight);
+    hphi_truth->Fill(phiCSTruthWrapped, weight);
 
     hphi->Fill(phi, weight);
     hZptVsCostheta->Fill(z.Pt(), costheta, weight);
@@ -666,8 +670,8 @@ void AIZ(bool isY=false){
     } else {
       hCosVspt_el->Fill(em.Pt(), cosThetaCSTruth, weight);
       hCosVspt_pos->Fill(ep.Pt(), cosThetaCSTruth, weight);
-      hPhiVspt_el->Fill(em.Pt(), phiCSTruth, weight);
-      hPhiVspt_pos->Fill(ep.Pt(), phiCSTruth, weight);
+      hPhiVspt_el->Fill(em.Pt(), phiCSTruthWrapped, weight);
+      hPhiVspt_pos->Fill(ep.Pt(), phiCSTruthWrapped, weight);
     }
 
     // cosTheta slices by lepton pT

@@ -92,7 +92,7 @@ For each event, the macro:
    Here:
 
    - `costheta` is `cos(theta_CS)`.
-   - `phi` is `phi_CS`.
+   - `phi` is `phi_CS`, normalized to the ATLAS range $[0,2\pi)$. A signed value in $[-\pi,\pi)$ is equivalent after adding $2\pi$ when negative. This does not change the periodic angular basis, but it does set the histogram and plot axes. Laboratory lepton `phi` values remain in ROOT's signed convention.
    - `ebeamGeV = 6500.0`, corresponding to 13 TeV pp collisions.
 
 ## Angular Coefficients

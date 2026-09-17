@@ -190,8 +190,9 @@ void getCSFAngles(const TLorentzVector &lep1, const int &charge1,
     xAxis = yAxis.Cross(CSAxis);
     xAxis = xAxis.Unit();
 
-    phi =
-        TMath::ATan2(lep1_boosted.Vect() * yAxis, lep1_boosted.Vect() * xAxis);
+    // ATLAS convention: return phi_CS in [0, 2*pi), not ROOT's signed range.
+    phi = TVector2::Phi_0_2pi(
+        TMath::ATan2(lep1_boosted.Vect() * yAxis, lep1_boosted.Vect() * xAxis));
 
     //    std::cout << TMath::ACos(CSAxis) << std::endl;
 }

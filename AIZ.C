@@ -12,6 +12,7 @@
 #include "TLVUtils.h"
 #include <cmath>
 #include <vector>
+#include <algorithm>
 // Draft Z version based on AIW.C (Collins-Soper angles, A0-A7)
 // To note that this Macro not only produce Ai form Phowegh or Sherpa MC but also create histogram for Kinematic studies.
 // Ai are relevant only in the full-phacespace instead Kinematic plots are interesting also while applying Fiducial cut on the lepton. So a functionality FiducialCut is added to allow comparing basic Kinematic distibution wile applying on not fiducial cut on the leptons.
@@ -26,6 +27,92 @@ bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, f
 bool FiducialCutEtaonly = false ;
 bool FiducialCutCCCF = false ;
 bool FiducialCutCFonly = true ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+
+// Weighted means with numerator/denominator covariance, including signed MC
+// weights. Keep sums so bins with a cancelling denominator are identifiable.
+namespace AIZP6 {
+void Style(TH1* histogram) {
+  histogram->SetStats(false);
+  histogram->GetXaxis()->CenterTitle();
+  histogram->GetYaxis()->CenterTitle();
+  histogram->GetXaxis()->SetTitleSize(0.04);
+  histogram->GetYaxis()->SetTitleSize(0.04);
+  histogram->GetYaxis()->SetTitleOffset(1.5);
+}
+struct Moment {
+  TH1D *mean, *sumW, *sumWX, *sumW2X, *sumW2X2, *valid;
+  Moment(const TString& name, const TString& title, int n, double lo, double hi) {
+    mean = new TH1D(name, title, n, lo, hi);
+    sumW = new TH1D(name+"_sumW", title, n, lo, hi);
+    sumWX = new TH1D(name+"_sumWX", title, n, lo, hi);
+    sumW2X = new TH1D(name+"_sumW2X", title, n, lo, hi);
+    sumW2X2 = new TH1D(name+"_sumW2X2", title, n, lo, hi);
+    valid = new TH1D(name+"_valid", ";bin coordinate;1 = nonzero sum of weights", n, lo, hi);
+    mean->Sumw2();
+    sumW->Sumw2();
+  }
+  void Fill(double coordinate, double value, double weight) {
+    sumW->Fill(coordinate, weight);
+    sumWX->Fill(coordinate, weight*value);
+    sumW2X->Fill(coordinate, weight*weight*value);
+    sumW2X2->Fill(coordinate, weight*weight*value*value);
+  }
+  void Write() {
+    for (int b=0; b<=mean->GetNbinsX()+1; ++b) {
+      const double w = sumW->GetBinContent(b);
+      if (w == 0.) continue; // undefined mean: valid mask stays zero
+      const double mu = sumWX->GetBinContent(b)/w;
+      const double w2 = std::pow(sumW->GetBinError(b), 2);
+      const double variance = (sumW2X2->GetBinContent(b)
+          - 2.*mu*sumW2X->GetBinContent(b) + mu*mu*w2)/(w*w);
+      mean->SetBinContent(b, mu);
+      mean->SetBinError(b, std::sqrt(std::max(0., variance)));
+      valid->SetBinContent(b, 1.);
+    }
+    mean->Write(); sumW->Write(); sumWX->Write();
+    sumW2X->Write(); sumW2X2->Write(); valid->Write();
+  }
+};
+}
+
+// Analytic basis plot: callable without any ntuple. Load TLVUtils.cxx first.
+TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.png") {
+  TH2D *map = new TH2D("P6_polynomial", ";cos#theta_{CS};#phi_{CS};P_{6}",
+                       160, -1., 1., 160, -M_PI, M_PI);
+  map->SetDirectory(nullptr);
+  std::vector<double> pols;
+  for (int ix=1; ix<=map->GetNbinsX(); ++ix)
+    for (int iy=1; iy<=map->GetNbinsY(); ++iy) {
+      TLVUtils::getAiPolynoms(map->GetXaxis()->GetBinCenter(ix),
+                             map->GetYaxis()->GetBinCenter(iy), pols);
+      map->SetBinContent(ix, iy, pols[6]);
+    }
+  map->SetStats(false); map->SetMinimum(-1.); map->SetMaximum(1.);
+  TCanvas *canvas = new TCanvas("c_P6_polynomial", "P6 angular basis", 1200, 500);
+  canvas->Divide(2,1);
+  canvas->cd(1)->SetRightMargin(0.17);
+  map->Draw("COLZ");
+  canvas->cd(2);
+  TLegend *legend = new TLegend(0.57,0.72,0.88,0.88);
+  for (int k=0; k<3; ++k) {
+    const double phi = (k==0 ? M_PI/2. : (k==1 ? -M_PI/2. : 0.));
+    TH1D *slice = new TH1D(Form("P6_slice_%d", k),
+        "P_{6} = sin(2#theta) sin#phi;cos#theta_{CS};P_{6}", 200, -1., 1.);
+    slice->SetDirectory(nullptr);
+    for (int b=1; b<=slice->GetNbinsX(); ++b) {
+      TLVUtils::getAiPolynoms(slice->GetBinCenter(b), phi, pols);
+      slice->SetBinContent(b, pols[6]);
+    }
+    slice->SetStats(false); slice->SetMinimum(-1.1); slice->SetMaximum(1.1);
+    slice->SetLineColor(k==0 ? kRed+1 : (k==1 ? kBlue+1 : kBlack));
+    slice->SetLineWidth(2);
+    slice->Draw(k==0 ? "HIST" : "HIST SAME");
+    legend->AddEntry(slice, k==0 ? "#phi = +#pi/2" : (k==1 ? "#phi = -#pi/2" : "#phi = 0"), "l");
+  }
+  legend->Draw();
+  if (imageName && imageName[0]) canvas->SaveAs(imageName);
+  return canvas;
+}
 
 // Macro to plot Ai coefficient from Sherpa and Powheg Z samples
 void AIZ(bool isY=false){
@@ -315,8 +402,34 @@ void AIZ(bool isY=false){
   TH1D *hCosLpos20_40 = new TH1D("cosThetaCSTruth_pos_pt20to40", "cosThetaCSTruth_pos_pt20to40", 50, -1., 1.);
   TH1D *hCosLpos40_80 = new TH1D("cosThetaCSTruth_pos_pt40to80", "cosThetaCSTruth_pos_pt40to80", 50, -1., 1.);
 
+  // P6-sensitive diagnostics use the same selected events and CS convention.
+  // A6_moment = 5<P6> is an Ai estimator ONLY with full angular acceptance.
+  TH1D *hP6 = new TH1D("P6", ";P_{6};Weighted events", 100, -1.000001, 1.000001);
+  TH1D *hAbsP6 = new TH1D("absP6", ";|P_{6}|;Weighted events", 50, 0., 1.000001);
+  TH2D *hP6ForwardCharge = new TH2D("P6_vs_forwardCharge_CF",
+      ";Charge of forward lepton (CF only);P_{6}", 2, -2., 2., 100, -1.000001, 1.000001);
+  hP6->Sumw2(); hAbsP6->Sumw2(); hP6ForwardCharge->Sumw2();
+  const char* p6Axes[] = {"deltaEta", "zPt", "absZY", "acoplanarity"};
+  const char* p6Labels[] = {"|#Delta#eta_{ee}|", "p_{T}(Z) [GeV]", "|y(Z)|", "#pi-|#Delta#phi_{ee}|"};
+  const int p6NBins[] = {40, 60, 25, 32};
+  const double p6Max[] = {10., 300., 5., M_PI};
+  std::vector<TH2D*> p6Correlations;
+  std::vector<AIZP6::Moment*> p6Moments, p6Signs, p6LeverArms;
+  for (int j=0; j<4; ++j) {
+    p6Correlations.push_back(new TH2D(Form("P6_vs_%s", p6Axes[j]),
+        Form(";%s;P_{6}", p6Labels[j]), p6NBins[j], 0., p6Max[j], 100, -1.000001, 1.000001));
+    p6Correlations.back()->Sumw2();
+    p6Moments.push_back(new AIZP6::Moment(Form("A6_moment_vs_%s", p6Axes[j]),
+        Form("Selected-sample moment;%s;5#LT P_{6}#GT", p6Labels[j]), p6NBins[j], 0., p6Max[j]));
+    p6Signs.push_back(new AIZP6::Moment(Form("P6_signAsym_vs_%s", p6Axes[j]),
+        Form("Selected-sample sign asymmetry;%s;#LT sign(P_{6})#GT", p6Labels[j]), p6NBins[j], 0., p6Max[j]));
+    p6LeverArms.push_back(new AIZP6::Moment(Form("P6_squared_vs_%s", p6Axes[j]),
+        Form("Angular lever arm;%s;#LT P_{6}^{2}#GT", p6Labels[j]), p6NBins[j], 0., p6Max[j]));
+  }
+  Long64_t p6UndefinedPlane = 0;
+
   Long64_t N = tree->GetEntries();
-  if (test)  N = 100000;
+  if (test) N = std::min<Long64_t>(N, 100000);
 
   // Tree stores these as Float_t; read with matching types to avoid ROOT warnings
   Float_t lepPtTruth0=-99, lepPhiTruth0 =-99, lepEtaTruth0=-99;
@@ -568,6 +681,28 @@ void AIZ(bool isY=false){
     std::vector<double> aipols;
     TLVUtils::getAiPolynoms(costheta, phi, aipols);
 
+    // At zero Z transverse momentum the hadron plane (and phi) is undefined.
+    // Exclude it from the new diagnostics and count it explicitly.
+    if (z.Pt() > 1.e-9 && std::isfinite(weight)) {
+      const double p6 = aipols[6];
+      const double signP6 = (p6 > 0.) ? 1. : ((p6 < 0.) ? -1. : 0.);
+      hP6->Fill(p6, weight);
+      hAbsP6->Fill(fabs(p6), weight);
+      const double coordinates[] = {dEta_ll, z.Pt(), fabs(z.Rapidity()), M_PI-dPhi_ll};
+      for (int j=0; j<4; ++j) {
+        p6Correlations[j]->Fill(coordinates[j], p6, weight);
+        p6Moments[j]->Fill(coordinates[j], 5.*p6, weight);
+        p6Signs[j]->Fill(coordinates[j], signP6, weight);
+        p6LeverArms[j]->Fill(coordinates[j], p6*p6, weight);
+      }
+      const bool negForward = fabs(em.Eta()) >= 2.5;
+      const bool posForward = fabs(ep.Eta()) >= 2.5;
+      if (negForward != posForward)
+        hP6ForwardCharge->Fill(negForward ? -1. : 1., p6, weight);
+    } else if (z.Pt() <= 1.e-9) {
+      ++p6UndefinedPlane;
+    }
+
     // Keep the historical AIZ histogram convention (scaled basis) for output
     // compatibility. The raw TLVUtils basis terms are transformed as follows:
     //   A0_scaled = 20/3 * p0 + 2/3
@@ -576,7 +711,7 @@ void AIZ(bool isY=false){
     //   A3_scaled = 4    * p3
     //   A4_scaled = 4    * p4
     //   A5_scaled = 5    * p5
-    //   A6_scaled = 4    * p6
+    //   A6_scaled = 4    * p6 (legacy; standard A6 = 5<P6>)
     //   A7_scaled = 4    * p7
     // where p{i} == aipols[i] returned by TLVUtils::getAiPolynoms.
     const double a0Scaled = (20./3.) * aipols[0] + (2./3.);
@@ -608,6 +743,56 @@ void AIZ(bool isY=false){
       A7->Fill(z.Pt(), a7Scaled * weight);
     }
   }
+
+  Output->cd();
+  AIZP6::Style(hP6); AIZP6::Style(hAbsP6); AIZP6::Style(hP6ForwardCharge);
+  hP6ForwardCharge->GetXaxis()->SetBinLabel(1, "e^{-} forward");
+  hP6ForwardCharge->GetXaxis()->SetBinLabel(2, "e^{+} forward");
+  hP6->Write(); hAbsP6->Write(); hP6ForwardCharge->Write();
+  TH1D p6Skipped("P6_undefinedPlane", ";Reason;Unweighted events", 1, 0., 1.);
+  p6Skipped.SetDirectory(nullptr);
+  p6Skipped.GetXaxis()->SetBinLabel(1, "pT(Z) <= 1e-9 GeV");
+  p6Skipped.SetBinContent(1, p6UndefinedPlane);
+  p6Skipped.Write();
+  for (int j=0; j<4; ++j) {
+    AIZP6::Style(p6Correlations[j]);
+    AIZP6::Style(p6Moments[j]->mean);
+    AIZP6::Style(p6Signs[j]->mean);
+    AIZP6::Style(p6LeverArms[j]->mean);
+    p6Correlations[j]->Write();
+    p6Moments[j]->Write(); p6Signs[j]->Write(); p6LeverArms[j]->Write();
+  }
+  TString plotPrefix = nameOutput;
+  plotPrefix.ReplaceAll(".root", "");
+  TCanvas *cP6Polynomial = AIZPlotP6((plotPrefix+"_P6_polynomial.png").Data());
+  cP6Polynomial->Write();
+  TCanvas *cP6 = new TCanvas("c_P6_observables", "P6-sensitive observables", 1400, 1000);
+  cP6->Divide(3,3);
+  for (int pad=1; pad<=9; ++pad) {
+    cP6->cd(pad)->SetLeftMargin(0.18);
+    gPad->SetBottomMargin(0.15); gPad->SetRightMargin(0.14);
+  }
+  cP6->cd(1); hP6->Draw("E");
+  cP6->cd(2); hAbsP6->Draw("E");
+  cP6->cd(3); hP6ForwardCharge->Draw("COLZ");
+  for (int j=0; j<3; ++j) {
+    cP6->cd(4+j); p6Correlations[j]->Draw("COLZ");
+    cP6->cd(7+j); p6Moments[j]->mean->SetStats(false); p6Moments[j]->mean->Draw("E");
+  }
+  cP6->Write();
+  cP6->SaveAs((plotPrefix+"_P6_observables.png").Data());
+  TCanvas *cP6Sensitivity = new TCanvas("c_P6_sensitivity", "P6 asymmetry and lever arm", 1600, 800);
+  cP6Sensitivity->Divide(4,2);
+  for (int pad=1; pad<=8; ++pad) {
+    cP6Sensitivity->cd(pad)->SetLeftMargin(0.18);
+    gPad->SetBottomMargin(0.15);
+  }
+  for (int j=0; j<4; ++j) {
+    cP6Sensitivity->cd(1+j); p6Signs[j]->mean->SetStats(false); p6Signs[j]->mean->Draw("E");
+    cP6Sensitivity->cd(5+j); p6LeverArms[j]->mean->SetStats(false); p6LeverArms[j]->mean->Draw("E");
+  }
+  cP6Sensitivity->Write();
+  cP6Sensitivity->SaveAs((plotPrefix+"_P6_sensitivity.png").Data());
 
   A0->Divide(Xsw);
   A1->Divide(Xsw);
@@ -784,4 +969,5 @@ void AIZ(bool isY=false){
   hCosOpeningVsLeadPt_ll->Write();
   hCosOpeningVsSubleadPt_ll->Write();
   hCosOpeningVsDeltaEta_ll->Write();
+  Output->Close();
 }

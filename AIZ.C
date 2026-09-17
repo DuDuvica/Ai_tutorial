@@ -21,10 +21,10 @@ bool sherpa = false;
 bool test = false; // set to true for quick test with limited events; set to false for full run
 bool override = false; // set to true to overwrite existing output file without prompt
 bool normXS = true;
-bool ifTrueOnly=true;
+bool ifTrueOnly = true;
 bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutEtaonly = false ;
-bool FiducialCutCCCF = false ;
+bool FiducialCutCCCF = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCFonly = true ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 
 // Macro to plot Ai coefficient from Sherpa and Powheg Z samples
@@ -261,12 +261,20 @@ void AIZ(bool isY=false){
   // Z–lepton correlations
   TH2D *hZptVsEta_m = new TH2D("zPt_vs_eta_m", ";p_{T}(Z) [GeV];#eta(e^{-})", zPtBins, 0., zPtMax, etaBins, etaMin, etaMax);
   TH2D *hZptVsEta_p = new TH2D("zPt_vs_eta_p", ";p_{T}(Z) [GeV];#eta(e^{+})", zPtBins, 0., zPtMax, etaBins, etaMin, etaMax);
+  TH2D *hZptVsEta_forward = new TH2D("zPt_vs_eta_forward", ";p_{T}(Z) [GeV];|#eta(forward l)|", zPtBins, 0., zPtMax, etaBins/2, 0, etaMax);
+  TH2D *hZptVsEta_central = new TH2D("zPt_vs_eta_central", ";p_{T}(Z) [GeV];|#eta(central l)|", zPtBins, 0., zPtMax, etaBins/2, 0, etaMax);
+  TH2D *hZptVsPt_forward = new TH2D("zPt_vs_pt_forward", ";p_{T}(Z) [GeV];p_{T}(forward l) [GeV]", zPtBins, 0., zPtMax, pt2dBins, 0., pt2dMax);
+  TH2D *hZptVsPt_central = new TH2D("zPt_vs_pt_central", ";p_{T}(Z) [GeV];p_{T}(central l) [GeV]", zPtBins, 0., zPtMax, pt2dBins, 0., pt2dMax);
   TH2D *hZYVsPt_m   = new TH2D("zY_vs_pt_m",   ";|y(Z)|;p_{T}(e^{-}) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
   TH2D *hZYVsPt_p   = new TH2D("zY_vs_pt_p",   ";|y(Z)|;p_{T}(e^{+}) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
   TH2D *hZYVsPt_leading = new TH2D("zY_vs_pt_leading", ";|y(Z)|;p_{T}(leading l) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
   TH2D *hZYVsPt_subleading = new TH2D("zY_vs_pt_subleading", ";|y(Z)|;p_{T}(subleading l) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
+  TH2D *hZYVsPt_forward = new TH2D("zY_vs_pt_forward", ";|y(Z)|;p_{T}(forward l) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
+  TH2D *hZYVsPt_central = new TH2D("zY_vs_pt_central", ";|y(Z)|;p_{T}(central l) [GeV]", zYBins/2, 0., zYMax, pt2dBins, 0., pt2dMax);
   TH2D *hZYVsEta_leading = new TH2D("zY_vs_eta_leading", ";|y(Z)|;#eta(leading l)", zYBins/2, 0., zYMax, etaBins, etaMin, etaMax);
   TH2D *hZYVsEta_subleading = new TH2D("zY_vs_eta_subleading", ";|y(Z)|;#eta(subleading l)", zYBins/2, 0., zYMax, etaBins, etaMin, etaMax);
+  TH2D *hZYVsEta_forward = new TH2D("zY_vs_eta_forward", ";|y(Z)|;|#eta(forward l)|", zYBins/2, 0., zYMax, etaBins/2, 0, etaMax);
+  TH2D *hZYVsEta_central = new TH2D("zY_vs_eta_central", ";|y(Z)|;|#eta(central l)|", zYBins/2, 0., zYMax, etaBins/2, 0, etaMax);
   TH2D *hZptVsCostheta = new TH2D("zPt_vs_costheta", ";p_{T}(Z) [GeV];cos#theta_{CS}", zPtBins, 0., zPtMax, 50, -1., 1.);
   TH2D *hZptVsPhi = new TH2D("zPt_vs_phi", ";p_{T}(Z) [GeV];#phi_{CS}", zPtBins, 0., zPtMax, phiBins, phiMin, phiMax);
   TH2D *hZYVsCostheta = new TH2D("zY_vs_costheta", ";|y(Z)|;cos#theta_{CS}", zYBins/2, 0., zYMax, 50, -1., 1.);
@@ -366,77 +374,69 @@ void AIZ(bool isY=false){
     // We build em = e- and ep = e+ explicitly for each event so that downstream
     // angular definitions are unambiguous. In particular, TLVUtils::getCSFAngles
     // expects the first lepton argument to be associated with charge1.
-     double pt_el = 0 ;
-     double pt_pos = 0 ;
     //  e−  == 11 e+ == -11 
     if ( id0 == 11 && id1 == -11){ 
-        pt_el = lepPtTruth0/1000.0; // GeV
-        pt_pos = lepPtTruth1/1000.0; // GeV
-         ep.SetPtEtaPhiM(pt_pos, lepEtaTruth1, lepPhiTruth1, 0);
-         em.SetPtEtaPhiM(pt_el, lepEtaTruth0, lepPhiTruth0, 0);
-   
+         ep.SetPtEtaPhiM(lepPtTruth1/1000.0, lepEtaTruth1, lepPhiTruth1, 0);
+         em.SetPtEtaPhiM(lepPtTruth0/1000.0, lepEtaTruth0, lepPhiTruth0, 0);
     }else if (id0 == -11 && id1 == 11){
-      pt_el = lepPtTruth1/1000.0; // GeV
-      pt_pos = lepPtTruth0/1000.0; // GeV
-      ep.SetPtEtaPhiM(pt_pos, lepEtaTruth0, lepPhiTruth0, 0);
-      em.SetPtEtaPhiM(pt_el, lepEtaTruth1, lepPhiTruth1, 0);
+      ep.SetPtEtaPhiM(lepPtTruth0/1000.0, lepEtaTruth0, lepPhiTruth0, 0);
+      em.SetPtEtaPhiM(lepPtTruth1/1000.0, lepEtaTruth1, lepPhiTruth1, 0);
     }else {
         if (ifTrueOnly) {
-          pt_el = lepPtTruth1/1000.0; // GeV
-          pt_pos = lepPtTruth0/1000.0; // GeV
-  
-          if ( FiducialCut ) {
-            if (FiducialCutEtaonly) {
-              // Apply only eta cuts for fiducial selection
-              if (fabs(lepEtaTruth1) > 2.5 || fabs(lepEtaTruth0) > 2.5) {
-                // Skip events where leptons do not pass eta cuts
-                if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails eta-only fiducial cuts: eta_el = " << lepEtaTruth1
-                      << "; eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
-                continue;
-              }
-            } else if (FiducialCutCCCF)   {
-            // CF fiducial selection:
-            // both leptons must satisfy pT > 25 GeV and at least one lepton must be central (|eta| < 2.5).
-            // Boundary |eta| = 2.5 is treated as CF (forward).
-              if (pt_el < 25.0 || pt_pos < 25.0 || (fabs(lepEtaTruth1) >= 2.5 && fabs(lepEtaTruth0) >= 2.5)) {
-                if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails CF fiducial cuts: pt_el = " << pt_el
-                      << " GeV, eta_el = " << lepEtaTruth1 << "; pt_pos = " << pt_pos
-                      << " GeV, eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
-                continue;
-              }
-            } else if (FiducialCutCFonly) {
-              // CF-only fiducial selection:
-              // both leptons must satisfy pT > 25 GeV and the pair must be one central
-              // lepton (|eta| < 2.5) plus one forward lepton (|eta| >= 2.5).
-              if (pt_el < 25.0 || pt_pos < 25.0 ||
-                  !((fabs(lepEtaTruth1) < 2.5 && fabs(lepEtaTruth0) >= 2.5) ||
-                    (fabs(lepEtaTruth1) >= 2.5 && fabs(lepEtaTruth0) < 2.5))) {
-                if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails CF-only fiducial cuts: pt_el = " << pt_el
-                      << " GeV, eta_el = " << lepEtaTruth1 << "; pt_pos = " << pt_pos
-                      << " GeV, eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
-                continue;
-              }
-            }
-             else {
-               // Apply full fiducial cuts (CC) on both pT and eta
-            if (pt_el < 25.0 || fabs(lepEtaTruth1) > 2.5 || pt_pos < 25.0 || fabs(lepEtaTruth0) > 2.5) {
-              // Skip events where leptons do not pass fiducial cuts
-             if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails fiducial cuts: pt_el = " << pt_el << " GeV, eta_el = " << lepEtaTruth1
-                   << "; pt_pos = " << pt_pos << " GeV, eta_pos = " << lepEtaTruth0 << ". Skipping event." << endl;
-              continue;
-            }
-            }
-          }  
-          // IF truthOnly Ntuple already selected
-          em.SetPtEtaPhiM(lepPtTruth1/1000.0, lepEtaTruth1, lepPhiTruth1, 0);//m_evtTree->lepMTruth1/m_GeV);
-          ep.SetPtEtaPhiM(lepPtTruth0/1000.0, lepEtaTruth0, lepPhiTruth0, 0);//m_evtTree->lepMTruth0/m_GeV);
+          // IF truthOnly Ntuple already selected and the first lep is positive
+          //   m_miniOutTree->m_lepPtTruth0 = float(pos.Pt());
+          //   m_miniOutTree->m_lepPtTruth1 = float(neg.Pt());
+          em.SetPtEtaPhiM(lepPtTruth1/1000.0, lepEtaTruth1, lepPhiTruth1, 0);
+          ep.SetPtEtaPhiM(lepPtTruth0/1000.0, lepEtaTruth0, lepPhiTruth0, 0);
         } else {
-
-        // Skip events where leptons are not identified as e+e-
-        cout << " WARNING: Event " << i << " has unexpected lepton IDs: lepID0 = " << lepID0 << ", lepID1 = " << lepID1 << ". Skipping event." << endl;
-        continue; 
+          // Skip events where leptons are not identified as e+e-
+          cout << " WARNING: Event " << i << " has unexpected lepton IDs: lepID0 = " << lepID0 << ", lepID1 = " << lepID1 << ". Skipping event." << endl;
+          continue; 
+        }
     }
-  }
+
+    if ( ifTrueOnly && FiducialCut ) {
+      if (FiducialCutEtaonly) {
+        // Apply only eta cuts for fiducial selection in CC
+        if (fabs(em.Eta()) > 2.5 || fabs(ep.Eta()) > 2.5) {
+          // Skip events where leptons do not pass eta cuts
+          if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails eta-only fiducial cuts: eta_el = " << em.Eta()
+                << "; eta_pos = " << ep.Eta() << ". Skipping event." << endl;
+          continue;
+        }
+      } else if (FiducialCutCCCF)   {
+      // CF fiducial selection:
+      // both leptons must satisfy pT > 25 GeV and at least one lepton must be central (|eta| < 2.5).
+      // Boundary |eta| = 2.5 is treated as CF (forward).
+        if (em.Pt() < 25.0 || ep.Pt() < 25.0 || (fabs(em.Eta()) >= 2.5 && fabs(ep.Eta()) >= 2.5)) {
+          if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails CF fiducial cuts: pt_el = " << em.Pt()
+                << " GeV, eta_el = " << em.Eta() << "; pt_pos = " << ep.Pt()
+                << " GeV, eta_pos = " << ep.Eta() << ". Skipping event." << endl;
+          continue;
+        }
+      } else if (FiducialCutCFonly) {
+        // CF-only fiducial selection:
+        // both leptons must satisfy pT > 25 GeV and the pair must be one central
+        // lepton (|eta| < 2.5) plus one forward lepton (|eta| >= 2.5).
+        if (em.Pt() < 25.0 || ep.Pt() < 25.0 ||
+            !((fabs(em.Eta()) < 2.5 && fabs(ep.Eta()) >= 2.5) ||
+              (fabs(em.Eta()) >= 2.5 && fabs(ep.Eta()) < 2.5))) {
+          if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails CF-only fiducial cuts: pt_el = " << em.Pt()
+                << " GeV, eta_el = " << em.Eta() << "; pt_pos = " << ep.Pt()
+                << " GeV, eta_pos = " << ep.Eta() << ". Skipping event." << endl;
+          continue;
+        }
+      }
+       else {
+         // Apply full fiducial cuts (CC) on both pT and eta
+        if (em.Pt() < 25.0 || fabs(em.Eta()) > 2.5 || ep.Pt() < 25.0 || fabs(ep.Eta()) > 2.5) {
+          // Skip events where leptons do not pass fiducial cuts
+         if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails fiducial cuts: pt_el = " << em.Pt() << " GeV, eta_el = " << em.Eta()
+               << "; pt_pos = " << ep.Pt() << " GeV, eta_pos = " << ep.Eta() << ". Skipping event." << endl;
+          continue;
+        }
+      }
+    }
 
     z = em + ep;
 
@@ -482,10 +482,10 @@ void AIZ(bool isY=false){
     hZYVsPhi->Fill(fabs(z.Rapidity()), phi, weight);
 
     // Determine leading and subleading leptons
-    double pt_leading = (pt_el > pt_pos) ? pt_el : pt_pos;
-    double pt_subleading = (pt_el > pt_pos) ? pt_pos : pt_el;
-    double eta_leading = (pt_el > pt_pos) ? em.Eta() : ep.Eta();
-    double eta_subleading = (pt_el > pt_pos) ? ep.Eta() : em.Eta();
+    double pt_leading = (em.Pt() > ep.Pt()) ? em.Pt() : ep.Pt();
+    double pt_subleading = (em.Pt() > ep.Pt()) ? ep.Pt() : em.Pt();
+    double eta_leading = (em.Pt() > ep.Pt()) ? em.Eta() : ep.Eta();
+    double eta_subleading = (em.Pt() > ep.Pt()) ? ep.Eta() : em.Eta();
 
     hEtaVsPt_leading->Fill(pt_leading, eta_leading, weight);
     hEtaVsPt_subleading->Fill(pt_subleading, eta_subleading, weight);
@@ -517,43 +517,56 @@ void AIZ(bool isY=false){
     hEta_ep_vs_em->Fill(ep.Eta(), em.Eta(), weight);
     hEta_eleading_vs_esubleading->Fill(abs(eta_leading), abs(eta_subleading), weight);
     hPhi_ep_vs_em->Fill(ep.Phi(), em.Phi(), weight);
-    hPt_ep_vs_em->Fill(pt_pos, pt_el, weight);
+    hPt_ep_vs_em->Fill(ep.Pt(), em.Pt(), weight);
     hPt_leading_vs_subleading->Fill(pt_leading, pt_subleading, weight);
 
     // Z–lepton correlations
     hZptVsEta_m->Fill(z.Pt(), em.Eta(), weight);
     hZptVsEta_p->Fill(z.Pt(), ep.Eta(), weight);
-    hZYVsPt_m->Fill(fabs(z.Rapidity()), pt_el, weight);
-    hZYVsPt_p->Fill(fabs(z.Rapidity()), pt_pos, weight);
+    hZYVsPt_m->Fill(fabs(z.Rapidity()), em.Pt(), weight);
+    hZYVsPt_p->Fill(fabs(z.Rapidity()), ep.Pt(), weight);
     hZYVsPt_leading->Fill(fabs(z.Rapidity()), pt_leading, weight);
     hZYVsPt_subleading->Fill(fabs(z.Rapidity()), pt_subleading, weight);
     hZYVsEta_leading->Fill(fabs(z.Rapidity()), eta_leading, weight);
     hZYVsEta_subleading->Fill(fabs(z.Rapidity()), eta_subleading, weight);
 
+    double eta_fwd = (fabs(em.Eta()) >= fabs(ep.Eta())) ? fabs(em.Eta()) : fabs(ep.Eta());
+    double eta_cen = (fabs(em.Eta()) >= fabs(ep.Eta())) ? fabs(ep.Eta()) : fabs(em.Eta());
+    double pt_fwd = (fabs(em.Eta()) >= fabs(ep.Eta())) ? em.Pt() : ep.Pt();
+    double pt_cen = (fabs(em.Eta()) >= fabs(ep.Eta())) ? ep.Pt() : em.Pt();
+    hZptVsEta_forward->Fill(z.Pt(), eta_fwd, weight);
+    hZptVsEta_central->Fill(z.Pt(), eta_cen, weight);
+    hZptVsPt_forward->Fill(z.Pt(), pt_fwd, weight);
+    hZptVsPt_central->Fill(z.Pt(), pt_cen, weight);
+    hZYVsEta_forward->Fill(fabs(z.Rapidity()), eta_fwd, weight);
+    hZYVsEta_central->Fill(fabs(z.Rapidity()), eta_cen, weight);
+    hZYVsPt_forward->Fill(fabs(z.Rapidity()), pt_fwd, weight);
+    hZYVsPt_central->Fill(fabs(z.Rapidity()), pt_cen, weight);
+
     // Additional truth-level angular correlations
     if (ifTrueOnly) {
       // Truth-only ntuple: cosThetaCSTruth/phiCSTruth not loaded, use the one obtained from the lepton four-vectors instead
-      hCosVspt_el->Fill(pt_el, costheta, weight);
-      hCosVspt_pos->Fill(pt_pos, costheta, weight);
-      hPhiVspt_el->Fill(pt_el, phi, weight);
-      hPhiVspt_pos->Fill(pt_pos, phi, weight);
+      hCosVspt_el->Fill(em.Pt(), costheta, weight);
+      hCosVspt_pos->Fill(ep.Pt(), costheta, weight);
+      hPhiVspt_el->Fill(em.Pt(), phi, weight);
+      hPhiVspt_pos->Fill(ep.Pt(), phi, weight);
     } else {
-      hCosVspt_el->Fill(pt_el, cosThetaCSTruth, weight);
-      hCosVspt_pos->Fill(pt_pos, cosThetaCSTruth, weight);
-      hPhiVspt_el->Fill(pt_el, phiCSTruth, weight);
-      hPhiVspt_pos->Fill(pt_pos, phiCSTruth, weight);
+      hCosVspt_el->Fill(em.Pt(), cosThetaCSTruth, weight);
+      hCosVspt_pos->Fill(ep.Pt(), cosThetaCSTruth, weight);
+      hPhiVspt_el->Fill(em.Pt(), phiCSTruth, weight);
+      hPhiVspt_pos->Fill(ep.Pt(), phiCSTruth, weight);
     }
 
     // cosTheta slices by lepton pT
-    if (pt_el >= 0. && pt_el < 5.)      hCosLneg0_5->Fill(costheta, weight);
-    else if (pt_el < 20.)             hCosLneg5_20->Fill(costheta, weight);
-    else if (pt_el < 40.)             hCosLneg20_40->Fill(costheta, weight);
-    else if (pt_el < 80.)             hCosLneg40_80->Fill(costheta, weight);
+    if (em.Pt() >= 0. && em.Pt() < 5.)      hCosLneg0_5->Fill(costheta, weight);
+    else if (em.Pt() < 20.)             hCosLneg5_20->Fill(costheta, weight);
+    else if (em.Pt() < 40.)             hCosLneg20_40->Fill(costheta, weight);
+    else if (em.Pt() < 80.)             hCosLneg40_80->Fill(costheta, weight);
 
-    if (pt_pos >= 0. && pt_pos < 5.)      hCosLpos0_5->Fill(costheta, weight);
-    else if (pt_pos < 20.)             hCosLpos5_20->Fill(costheta, weight);
-    else if (pt_pos < 40.)             hCosLpos20_40->Fill(costheta, weight);
-    else if (pt_pos < 80.)             hCosLpos40_80->Fill(costheta, weight);
+    if (ep.Pt() >= 0. && ep.Pt() < 5.)      hCosLpos0_5->Fill(costheta, weight);
+    else if (ep.Pt() < 20.)             hCosLpos5_20->Fill(costheta, weight);
+    else if (ep.Pt() < 40.)             hCosLpos20_40->Fill(costheta, weight);
+    else if (ep.Pt() < 80.)             hCosLpos40_80->Fill(costheta, weight);
 
     if(isY){
       Xs->Fill(fabs(z.Rapidity()));
@@ -748,12 +761,20 @@ void AIZ(bool isY=false){
   hPt_leading_vs_subleading->Write();
   hZptVsEta_m->Write();
   hZptVsEta_p->Write();
+  hZptVsEta_forward->Write();
+  hZptVsEta_central->Write();
+  hZptVsPt_forward->Write();
+  hZptVsPt_central->Write();
   hZYVsPt_m->Write();
   hZYVsPt_p->Write();
   hZYVsPt_leading->Write();
   hZYVsPt_subleading->Write();
+  hZYVsPt_forward->Write();
+  hZYVsPt_central->Write();
   hZYVsEta_leading->Write();
   hZYVsEta_subleading->Write();
+  hZYVsEta_forward->Write();
+  hZYVsEta_central->Write();
   hCosLneg0_5->Write();
   hCosLneg5_20->Write();
   hCosLneg20_40->Write();

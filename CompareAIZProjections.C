@@ -62,6 +62,16 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   TH2D* hZYVsEtaLead = static_cast<TH2D*>(f->Get("zY_vs_eta_leading"));
   TH2D* hZYVsEtaSub  = static_cast<TH2D*>(f->Get("zY_vs_eta_subleading"));
 
+  // Forward / Central inputs
+  TH2D* hZptVsPtFwd  = static_cast<TH2D*>(f->Get(isY ? "zY_vs_pt_forward" : "zPt_vs_pt_forward"));
+  TH2D* hZptVsPtCen  = static_cast<TH2D*>(f->Get(isY ? "zY_vs_pt_central" : "zPt_vs_pt_central"));
+  TH2D* hZptVsEtaFwd = static_cast<TH2D*>(f->Get(isY ? "zY_vs_eta_forward" : "zPt_vs_eta_forward"));
+  TH2D* hZptVsEtaCen = static_cast<TH2D*>(f->Get(isY ? "zY_vs_eta_central" : "zPt_vs_eta_central"));
+  if (!hZptVsPtFwd)  hZptVsPtFwd  = static_cast<TH2D*>(f->Get("zPt_vs_pt_forward"));
+  if (!hZptVsPtCen)  hZptVsPtCen  = static_cast<TH2D*>(f->Get("zPt_vs_pt_central"));
+  if (!hZptVsEtaFwd) hZptVsEtaFwd = static_cast<TH2D*>(f->Get("zPt_vs_eta_forward"));
+  if (!hZptVsEtaCen) hZptVsEtaCen = static_cast<TH2D*>(f->Get("zPt_vs_eta_central"));
+
   if (!hCosthLead || !hCosthSub || !hDEtaLead || !hDEtaSub || !hDEtaCosth || !hPtEpVsEm || !hPtLeadVsSublead || !hBosonVsObsM || !hBosonVsObsP || !hBosonVsCostheta || !hBosonVsPhi || !hDEtaVsBoson) {
     std::cout << "ERROR: one or more required histograms are missing in " << inFile << std::endl;
     std::cout << "Needed: costh_vs_pt_leading, costh_vs_pt_subleading, "
@@ -200,6 +210,112 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   rDEta->GetXaxis()->SetTitleSize(0.11);
   rDEta->GetXaxis()->SetLabelSize(0.10);
   rDEta->Draw("ep");
+
+  // 2b) Compare pT projections for forward vs central leptons.
+  TCanvas* cPtFwdCen = nullptr;
+  if (hZptVsPtFwd && hZptVsPtCen) {
+    TH1D* pPtFwd = hZptVsPtFwd->ProjectionY("pPt_forward");
+    TH1D* pPtCen = hZptVsPtCen->ProjectionY("pPt_central");
+    if (pPtFwd->Integral() > 0) pPtFwd->Scale(1.0 / pPtFwd->Integral());
+    if (pPtCen->Integral() > 0) pPtCen->Scale(1.0 / pPtCen->Integral());
+
+    pPtFwd->SetLineColor(kRed + 1);
+    pPtFwd->SetLineWidth(2);
+    pPtCen->SetLineColor(kBlue + 1);
+    pPtCen->SetLineWidth(2);
+    pPtCen->SetLineStyle(2);
+
+    cPtFwdCen = new TCanvas("c_compare_pt_forward_vs_central", "p_{T} forward vs central projections", 900, 800);
+    TPad* padPtFwdTop = new TPad("padPtFwdTop", "padPtFwdTop", 0.0, 0.30, 1.0, 1.0);
+    TPad* padPtFwdBot = new TPad("padPtFwdBot", "padPtFwdBot", 0.0, 0.00, 1.0, 0.30);
+    padPtFwdTop->SetBottomMargin(0.02);
+    padPtFwdBot->SetTopMargin(0.04);
+    padPtFwdBot->SetBottomMargin(0.30);
+    cPtFwdCen->cd();
+    padPtFwdTop->Draw();
+    padPtFwdBot->Draw();
+
+    padPtFwdTop->cd();
+    pPtFwd->SetTitle("Projection: p_{T} forward vs central;p_{T} [GeV];Normalized entries");
+    pPtFwd->Draw("hist");
+    pPtCen->Draw("hist same");
+
+    TLegend* legPtFwdCen = new TLegend(0.55, 0.75, 0.88, 0.88);
+    legPtFwdCen->AddEntry(pPtFwd, "forward lepton", "l");
+    legPtFwdCen->AddEntry(pPtCen, "central lepton", "l");
+    legPtFwdCen->Draw();
+
+    TH1D* rPtFwdCen = static_cast<TH1D*>(pPtFwd->Clone("ratio_pt_fwd_over_cen"));
+    rPtFwdCen->SetTitle(";p_{T} [GeV];Forward / Central");
+    rPtFwdCen->Divide(pPtCen);
+    rPtFwdCen->SetLineColor(kBlack);
+    rPtFwdCen->SetMarkerColor(kBlack);
+    rPtFwdCen->SetMarkerStyle(20);
+    rPtFwdCen->SetMarkerSize(0.7);
+    rPtFwdCen->GetYaxis()->SetRangeUser(0.5, 1.5);
+
+    padPtFwdBot->cd();
+    rPtFwdCen->GetYaxis()->SetTitleSize(0.09);
+    rPtFwdCen->GetYaxis()->SetLabelSize(0.08);
+    rPtFwdCen->GetYaxis()->SetTitleOffset(0.55);
+    rPtFwdCen->GetYaxis()->SetNdivisions(505);
+    rPtFwdCen->GetXaxis()->SetTitleSize(0.11);
+    rPtFwdCen->GetXaxis()->SetLabelSize(0.10);
+    rPtFwdCen->Draw("ep");
+  }
+
+  // 2c) Compare |eta| projections for forward vs central leptons.
+  TCanvas* cEtaFwdCen = nullptr;
+  if (hZptVsEtaFwd && hZptVsEtaCen) {
+    TH1D* pEtaFwd = hZptVsEtaFwd->ProjectionY("pEta_forward");
+    TH1D* pEtaCen = hZptVsEtaCen->ProjectionY("pEta_central");
+    if (pEtaFwd->Integral() > 0) pEtaFwd->Scale(1.0 / pEtaFwd->Integral());
+    if (pEtaCen->Integral() > 0) pEtaCen->Scale(1.0 / pEtaCen->Integral());
+
+    pEtaFwd->SetLineColor(kRed + 1);
+    pEtaFwd->SetLineWidth(2);
+    pEtaCen->SetLineColor(kBlue + 1);
+    pEtaCen->SetLineWidth(2);
+    pEtaCen->SetLineStyle(2);
+
+    cEtaFwdCen = new TCanvas("c_compare_eta_forward_vs_central", "|#eta| forward vs central projections", 900, 800);
+    TPad* padEtaFwdTop = new TPad("padEtaFwdTop", "padEtaFwdTop", 0.0, 0.30, 1.0, 1.0);
+    TPad* padEtaFwdBot = new TPad("padEtaFwdBot", "padEtaFwdBot", 0.0, 0.00, 1.0, 0.30);
+    padEtaFwdTop->SetBottomMargin(0.02);
+    padEtaFwdTop->SetTopMargin(0.04);
+    padEtaFwdBot->SetBottomMargin(0.30);
+    cEtaFwdCen->cd();
+    padEtaFwdTop->Draw();
+    padEtaFwdBot->Draw();
+
+    padEtaFwdTop->cd();
+    pEtaFwd->SetTitle("Projection: |#eta| forward vs central;|#eta|;Normalized entries");
+    pEtaFwd->Draw("hist");
+    pEtaCen->Draw("hist same");
+
+    TLegend* legEtaFwdCen = new TLegend(0.55, 0.75, 0.88, 0.88);
+    legEtaFwdCen->AddEntry(pEtaFwd, "forward lepton", "l");
+    legEtaFwdCen->AddEntry(pEtaCen, "central lepton", "l");
+    legEtaFwdCen->Draw();
+
+    TH1D* rEtaFwdCen = static_cast<TH1D*>(pEtaFwd->Clone("ratio_eta_fwd_over_cen"));
+    rEtaFwdCen->SetTitle(";|#eta|;Forward / Central");
+    rEtaFwdCen->Divide(pEtaCen);
+    rEtaFwdCen->SetLineColor(kBlack);
+    rEtaFwdCen->SetMarkerColor(kBlack);
+    rEtaFwdCen->SetMarkerStyle(20);
+    rEtaFwdCen->SetMarkerSize(0.7);
+    rEtaFwdCen->GetYaxis()->SetRangeUser(0.0, 2.0);
+
+    padEtaFwdBot->cd();
+    rEtaFwdCen->GetYaxis()->SetTitleSize(0.09);
+    rEtaFwdCen->GetYaxis()->SetLabelSize(0.08);
+    rEtaFwdCen->GetYaxis()->SetTitleOffset(0.55);
+    rEtaFwdCen->GetYaxis()->SetNdivisions(505);
+    rEtaFwdCen->GetXaxis()->SetTitleSize(0.11);
+    rEtaFwdCen->GetXaxis()->SetLabelSize(0.10);
+    rEtaFwdCen->Draw("ep");
+  }
 
   // 3) Projections of deltaEta_vs_costh.
   TH1D* pDEtaFromCosth = hDEtaCosth->ProjectionX("pDeltaEta_from_deltaEta_vs_costh");
@@ -575,6 +691,10 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
 
   TCanvas* cPtLeadSubleadInYSlices = nullptr;
   TCanvas* cEtaLeadSubleadInYSlices = nullptr;
+  TCanvas* cPtFwdCenInBosonSlices = nullptr;
+  TCanvas* cEtaFwdCenInBosonSlices = nullptr;
+  TCanvas* cPtFwdBosonOverlay = nullptr;
+  TCanvas* cEtaFwdBosonOverlay = nullptr;
 
   TCanvas* cBosonCosthSlices = new TCanvas(
     isY ? "c_projection_costheta_in_zY_slices" : "c_projection_costheta_in_zpt_slices",
@@ -882,6 +1002,297 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     }
   }
 
+  // 12) Forward vs Central overlays in boson (pT(Z) or |y(Z)|) slices.
+  if (hZptVsPtFwd && hZptVsPtCen) {
+    TH1D* pPtFwdBosonSlices[nBosonSlices] = {nullptr};
+
+    cPtFwdCenInBosonSlices = new TCanvas(
+      isY ? "c_overlay_pT_forward_in_yZ_slices" : "c_overlay_pT_forward_in_pTZ_slices",
+      isY ? "p_{T}(forward) vs p_{T}(central) in |y(Z)| slices" : "p_{T}(forward) vs p_{T}(central) in p_{T}(Z) slices",
+      1600, 900
+    );
+    cPtFwdCenInBosonSlices->Divide(4, 2);
+
+    for (int i = 0; i < nBosonSlices; ++i) {
+      const double bosonLo = isY ? yLow[i] : bosonLow[i];
+      const double bosonHi = isY ? yHigh[i] : bosonHigh[i];
+
+      int xBinLo = hZptVsPtFwd->GetXaxis()->FindBin(bosonLo + 1e-6);
+      int xBinHi = (bosonHi >= hZptVsPtFwd->GetXaxis()->GetXmax())
+                     ? hZptVsPtFwd->GetXaxis()->GetNbins()
+                     : hZptVsPtFwd->GetXaxis()->FindBin(bosonHi - 1e-6);
+      xBinLo = std::max(1, xBinLo);
+      xBinHi = std::max(xBinLo, std::min(hZptVsPtFwd->GetXaxis()->GetNbins(), xBinHi));
+
+      TH1D* pPtFwdInBoson = hZptVsPtFwd->ProjectionY(Form("pPt_fwd_bosonbin_%d", i), xBinLo, xBinHi);
+      TH1D* pPtCenInBoson = hZptVsPtCen->ProjectionY(Form("pPt_cen_bosonbin_%d", i), xBinLo, xBinHi);
+
+      if (pPtFwdInBoson->Integral() > 0) pPtFwdInBoson->Scale(1.0 / pPtFwdInBoson->Integral());
+      if (pPtCenInBoson->Integral() > 0) pPtCenInBoson->Scale(1.0 / pPtCenInBoson->Integral());
+
+      pPtFwdInBoson->SetLineColor(kRed + 1);
+      pPtFwdInBoson->SetLineWidth(2);
+      pPtCenInBoson->SetLineColor(kBlue + 1);
+      pPtCenInBoson->SetLineWidth(2);
+      pPtCenInBoson->SetLineStyle(2);
+
+      cPtFwdCenInBosonSlices->cd(i + 1);
+      pPtFwdInBoson->SetTitle(Form("%.1f < %s < %.1f%s;p_{T} [GeV];Normalized entries", bosonLo, bosonLabel, bosonHi, bosonUnit));
+      pPtFwdInBoson->Draw("hist");
+      pPtCenInBoson->Draw("hist same");
+
+      TLegend* legPtInBoson = new TLegend(0.48, 0.74, 0.88, 0.88);
+      legPtInBoson->AddEntry(pPtFwdInBoson, "p_{T}(forward)", "l");
+      legPtInBoson->AddEntry(pPtCenInBoson, "p_{T}(central)", "l");
+      legPtInBoson->Draw();
+
+      TLatex* meanText = new TLatex();
+      meanText->SetNDC();
+      meanText->SetTextSize(0.035);
+      meanText->SetTextFont(42);
+      const TString fwdMeanLabel = (pPtFwdInBoson->GetEntries() > 0)
+                                    ? Form("<#it{p}_{T}> fwd = %.1f GeV", pPtFwdInBoson->GetMean())
+                                    : "<#it{p}_{T}> fwd = n/a";
+      const TString cenMeanLabel = (pPtCenInBoson->GetEntries() > 0)
+                                   ? Form("<#it{p}_{T}> cen = %.1f GeV", pPtCenInBoson->GetMean())
+                                   : "<#it{p}_{T}> cen = n/a";
+      meanText->DrawLatex(0.48, 0.66, fwdMeanLabel);
+      meanText->DrawLatex(0.48, 0.60, cenMeanLabel);
+
+      TH1D* pPtFwdSliceCopy = static_cast<TH1D*>(pPtFwdInBoson->Clone(Form("pPt_fwd_overlay_slice_%d", i)));
+      pPtFwdSliceCopy->SetLineColor(sliceColors[i]);
+      pPtFwdSliceCopy->SetLineWidth(2);
+      pPtFwdSliceCopy->SetLineStyle(1);
+      pPtFwdBosonSlices[i] = pPtFwdSliceCopy;
+    }
+
+    cPtFwdBosonOverlay = new TCanvas(
+      isY ? "c_overlay_pt_forward_all_in_yZ_slices" : "c_overlay_pt_forward_all_in_pTZ_slices",
+      isY ? "Overlay p_{T}(forward) in |y(Z)| slices" : "Overlay p_{T}(forward) in p_{T}(Z) slices",
+      1000, 800
+    );
+
+    TPad* padPtFwdOverlayTop = new TPad("padPtFwdOverlayTop", "padPtFwdOverlayTop", 0.0, 0.30, 1.0, 1.0);
+    TPad* padPtFwdOverlayBot = new TPad("padPtFwdOverlayBot", "padPtFwdOverlayBot", 0.0, 0.00, 1.0, 0.30);
+    padPtFwdOverlayTop->SetBottomMargin(0.02);
+    padPtFwdOverlayTop->SetTopMargin(0.05);
+    padPtFwdOverlayBot->SetBottomMargin(0.32);
+    cPtFwdBosonOverlay->cd();
+    padPtFwdOverlayTop->Draw();
+    padPtFwdOverlayBot->Draw();
+
+    double maxPtFwdOverlay = 0.0;
+    for (int i = 0; i < nBosonSlices; ++i) {
+      if (pPtFwdBosonSlices[i]) maxPtFwdOverlay = std::max(maxPtFwdOverlay, pPtFwdBosonSlices[i]->GetMaximum());
+    }
+
+    TLegend* legPtFwdBosonOverlay = new TLegend(isY ? 0.14 : 0.56, isY ? 0.60 : 0.58, isY ? 0.46 : 0.88, 0.88);
+    legPtFwdBosonOverlay->SetBorderSize(0);
+    legPtFwdBosonOverlay->SetFillStyle(0);
+
+    padPtFwdOverlayTop->cd();
+    for (int i = 0; i < nBosonSlices; ++i) {
+      if (!pPtFwdBosonSlices[i]) continue;
+      if (i == 0) {
+        pPtFwdBosonSlices[i]->SetTitle(Form("Overlay: p_{T}(forward) slices in %s;p_{T} [GeV];Normalized entries", bosonLabel));
+        if (maxPtFwdOverlay > 0.0) pPtFwdBosonSlices[i]->SetMaximum(1.25 * maxPtFwdOverlay);
+        pPtFwdBosonSlices[i]->Draw("hist");
+      } else {
+        pPtFwdBosonSlices[i]->Draw("hist same");
+      }
+      const double bosonLo = isY ? yLow[i] : bosonLow[i];
+      const double bosonHi = isY ? yHigh[i] : bosonHigh[i];
+      legPtFwdBosonOverlay->AddEntry(pPtFwdBosonSlices[i], Form("%.1f < %s < %.1f%s", bosonLo, bosonLabel, bosonHi, bosonUnit), "l");
+    }
+    legPtFwdBosonOverlay->Draw();
+
+    padPtFwdOverlayBot->cd();
+    TH1D* pPtFwdRef = pPtFwdBosonSlices[0];
+    TH1D* pFirstPtFwdRatio = nullptr;
+    for (int i = 1; i < nBosonSlices; ++i) {
+      if (!pPtFwdBosonSlices[i] || !pPtFwdRef) continue;
+      TH1D* pRatio = static_cast<TH1D*>(pPtFwdBosonSlices[i]->Clone(Form("ratio_pt_fwd_boson_slice_%d", i)));
+      pRatio->Divide(pPtFwdRef);
+      pRatio->SetLineColor(sliceColors[i]);
+      pRatio->SetMarkerColor(sliceColors[i]);
+      pRatio->SetMarkerStyle(20);
+      pRatio->SetMarkerSize(0.55);
+      pRatio->GetYaxis()->SetRangeUser(0.5, 1.5);
+      pRatio->GetYaxis()->SetTitle("Slice / Ref");
+      pRatio->GetYaxis()->SetTitleSize(0.10);
+      pRatio->GetYaxis()->SetLabelSize(0.09);
+      pRatio->GetYaxis()->SetTitleOffset(0.45);
+      pRatio->GetYaxis()->SetNdivisions(505);
+      pRatio->GetXaxis()->SetTitle("p_{T} [GeV]");
+      pRatio->GetXaxis()->SetTitleSize(0.12);
+      pRatio->GetXaxis()->SetLabelSize(0.10);
+      if (!pFirstPtFwdRatio) {
+        pFirstPtFwdRatio = pRatio;
+        pFirstPtFwdRatio->Draw("ep");
+      } else {
+        pRatio->Draw("ep same");
+      }
+    }
+
+    if (pFirstPtFwdRatio && pPtFwdRef) {
+      TLine* unityLine = new TLine(pPtFwdRef->GetXaxis()->GetXmin(), 1.0, pPtFwdRef->GetXaxis()->GetXmax(), 1.0);
+      unityLine->SetLineColor(kGray + 2);
+      unityLine->SetLineStyle(2);
+      unityLine->SetLineWidth(2);
+      unityLine->Draw("same");
+    }
+  } else {
+    std::cout << "WARNING: missing forward/central pT maps. Skipping pT(forward/central) in boson slices." << std::endl;
+  }
+
+  if (hZptVsEtaFwd && hZptVsEtaCen) {
+    TH1D* pEtaFwdBosonSlices[nBosonSlices] = {nullptr};
+
+    cEtaFwdCenInBosonSlices = new TCanvas(
+      isY ? "c_overlay_eta_forward_in_yZ_slices" : "c_overlay_eta_forward_in_pTZ_slices",
+      isY ? "|#eta|(forward) vs |#eta|(central) in |y(Z)| slices" : "|#eta|(forward) vs |#eta|(central) in p_{T}(Z) slices",
+      1600, 900
+    );
+    cEtaFwdCenInBosonSlices->Divide(4, 2);
+
+    for (int i = 0; i < nBosonSlices; ++i) {
+      const double bosonLo = isY ? yLow[i] : bosonLow[i];
+      const double bosonHi = isY ? yHigh[i] : bosonHigh[i];
+
+      int xBinLo = hZptVsEtaFwd->GetXaxis()->FindBin(bosonLo + 1e-6);
+      int xBinHi = (bosonHi >= hZptVsEtaFwd->GetXaxis()->GetXmax())
+                     ? hZptVsEtaFwd->GetXaxis()->GetNbins()
+                     : hZptVsEtaFwd->GetXaxis()->FindBin(bosonHi - 1e-6);
+      xBinLo = std::max(1, xBinLo);
+      xBinHi = std::max(xBinLo, std::min(hZptVsEtaFwd->GetXaxis()->GetNbins(), xBinHi));
+
+      TH1D* pEtaFwdInBoson = hZptVsEtaFwd->ProjectionY(Form("pEta_fwd_bosonbin_%d", i), xBinLo, xBinHi);
+      TH1D* pEtaCenInBoson = hZptVsEtaCen->ProjectionY(Form("pEta_cen_bosonbin_%d", i), xBinLo, xBinHi);
+
+      if (pEtaFwdInBoson->Integral() > 0) pEtaFwdInBoson->Scale(1.0 / pEtaFwdInBoson->Integral());
+      if (pEtaCenInBoson->Integral() > 0) pEtaCenInBoson->Scale(1.0 / pEtaCenInBoson->Integral());
+
+      pEtaFwdInBoson->SetLineColor(kRed + 1);
+      pEtaFwdInBoson->SetLineWidth(2);
+      pEtaCenInBoson->SetLineColor(kBlue + 1);
+      pEtaCenInBoson->SetLineWidth(2);
+      pEtaCenInBoson->SetLineStyle(2);
+
+      cEtaFwdCenInBosonSlices->cd(i + 1);
+      pEtaFwdInBoson->SetTitle(Form("%.1f < %s < %.1f%s;|#eta|;Normalized entries", bosonLo, bosonLabel, bosonHi, bosonUnit));
+      pEtaFwdInBoson->Draw("hist");
+      pEtaCenInBoson->Draw("hist same");
+
+      TLegend* legEtaInBoson = new TLegend(0.48, 0.74, 0.88, 0.88);
+      legEtaInBoson->AddEntry(pEtaFwdInBoson, "|#eta|(forward)", "l");
+      legEtaInBoson->AddEntry(pEtaCenInBoson, "|#eta|(central)", "l");
+      legEtaInBoson->Draw();
+
+      TH1D* pEtaFwdSliceCopy = static_cast<TH1D*>(pEtaFwdInBoson->Clone(Form("pEta_fwd_overlay_slice_%d", i)));
+      pEtaFwdSliceCopy->SetLineColor(sliceColors[i]);
+      pEtaFwdSliceCopy->SetLineWidth(2);
+      pEtaFwdSliceCopy->SetLineStyle(1);
+      pEtaFwdBosonSlices[i] = pEtaFwdSliceCopy;
+    }
+
+    // Overlay all forward |eta| boson slices on one canvas with distinct colors and ratio panel.
+    cEtaFwdBosonOverlay = new TCanvas(
+      isY ? "c_overlay_eta_forward_all_in_yZ_slices" : "c_overlay_eta_forward_all_in_pTZ_slices",
+      isY ? "Overlay |#eta|(forward) in |y(Z)| slices" : "Overlay |#eta|(forward) in p_{T}(Z) slices",
+      1000, 800
+    );
+
+    TPad* padEtaFwdOverlayTop = new TPad("padEtaFwdOverlayTop", "padEtaFwdOverlayTop", 0.0, 0.30, 1.0, 1.0);
+    TPad* padEtaFwdOverlayBot = new TPad("padEtaFwdOverlayBot", "padEtaFwdOverlayBot", 0.0, 0.00, 1.0, 0.30);
+    padEtaFwdOverlayTop->SetBottomMargin(0.02);
+    padEtaFwdOverlayTop->SetTopMargin(0.05);
+    padEtaFwdOverlayBot->SetBottomMargin(0.32);
+    cEtaFwdBosonOverlay->cd();
+    padEtaFwdOverlayTop->Draw();
+    padEtaFwdOverlayBot->Draw();
+
+    double maxEtaFwdOverlay = 0.0;
+    for (int i = 0; i < nBosonSlices; ++i) {
+      if (!pEtaFwdBosonSlices[i]) continue;
+      maxEtaFwdOverlay = std::max(maxEtaFwdOverlay, pEtaFwdBosonSlices[i]->GetMaximum());
+    }
+
+    const double legX1 = isY ? 0.14 : 0.56;
+    const double legY1 = isY ? 0.60 : 0.58;
+    const double legX2 = isY ? 0.46 : 0.88;
+    const double legY2 = 0.88;
+    TLegend* legEtaFwdBosonOverlay = new TLegend(legX1, legY1, legX2, legY2);
+    legEtaFwdBosonOverlay->SetBorderSize(0);
+    legEtaFwdBosonOverlay->SetFillStyle(0);
+
+    padEtaFwdOverlayTop->cd();
+    for (int i = 0; i < nBosonSlices; ++i) {
+      if (!pEtaFwdBosonSlices[i]) continue;
+      if (i == 0) {
+        pEtaFwdBosonSlices[i]->SetTitle(Form("Overlay: |#eta|(forward) slices in %s;|#eta|;Normalized entries", bosonLabel));
+        if (maxEtaFwdOverlay > 0.0) pEtaFwdBosonSlices[i]->SetMaximum(1.25 * maxEtaFwdOverlay);
+        pEtaFwdBosonSlices[i]->Draw("hist");
+      } else {
+        pEtaFwdBosonSlices[i]->Draw("hist same");
+      }
+      const double bosonLo = isY ? yLow[i] : bosonLow[i];
+      const double bosonHi = isY ? yHigh[i] : bosonHigh[i];
+      legEtaFwdBosonOverlay->AddEntry(pEtaFwdBosonSlices[i], Form("%.1f < %s < %.1f%s", bosonLo, bosonLabel, bosonHi, bosonUnit), "l");
+    }
+    legEtaFwdBosonOverlay->Draw();
+
+    // Ratio panel: each slice divided by the first slice.
+    padEtaFwdOverlayBot->cd();
+    TH1D* pEtaFwdRef = pEtaFwdBosonSlices[0];
+    TH1D* pFirstEtaFwdRatio = nullptr;
+    for (int i = 1; i < nBosonSlices; ++i) {
+      if (!pEtaFwdBosonSlices[i] || !pEtaFwdRef) continue;
+      TH1D* pRatio = static_cast<TH1D*>(pEtaFwdBosonSlices[i]->Clone(Form("ratio_eta_fwd_boson_slice_%d", i)));
+      pRatio->Divide(pEtaFwdRef);
+      pRatio->SetLineColor(sliceColors[i]);
+      pRatio->SetMarkerColor(sliceColors[i]);
+      pRatio->SetMarkerStyle(20);
+      pRatio->SetMarkerSize(0.55);
+      pRatio->GetYaxis()->SetRangeUser(0.5, 1.5);
+      pRatio->GetYaxis()->SetTitle("Slice / Ref");
+      pRatio->GetYaxis()->SetTitleSize(0.10);
+      pRatio->GetYaxis()->SetLabelSize(0.09);
+      pRatio->GetYaxis()->SetTitleOffset(0.45);
+      pRatio->GetYaxis()->SetNdivisions(505);
+      pRatio->GetXaxis()->SetTitle("|#eta|");
+      pRatio->GetXaxis()->SetTitleSize(0.12);
+      pRatio->GetXaxis()->SetLabelSize(0.10);
+      if (!pFirstEtaFwdRatio) {
+        pFirstEtaFwdRatio = pRatio;
+        pFirstEtaFwdRatio->Draw("ep");
+      } else {
+        pRatio->Draw("ep same");
+      }
+    }
+
+    if (pFirstEtaFwdRatio && pEtaFwdRef) {
+      const double xMin = pEtaFwdRef->GetXaxis()->GetXmin();
+      const double xMax = pEtaFwdRef->GetXaxis()->GetXmax();
+      TLine* unityLine = new TLine(xMin, 1.0, xMax, 1.0);
+      unityLine->SetLineColor(kGray + 2);
+      unityLine->SetLineStyle(2);
+      unityLine->SetLineWidth(2);
+      unityLine->Draw("same");
+
+      const double refLo = isY ? yLow[0] : bosonLow[0];
+      const double refHi = isY ? yHigh[0] : bosonHigh[0];
+      TLegend* legRatioInfo = new TLegend(0.54, 0.72, 0.88, 0.90);
+      legRatioInfo->SetBorderSize(0);
+      legRatioInfo->SetFillStyle(0);
+      legRatioInfo->SetTextSize(0.08);
+      legRatioInfo->AddEntry((TObject*)0, Form("Ref: %.1f < %s < %.1f%s", refLo, bosonLabel, refHi, bosonUnit), "");
+      legRatioInfo->AddEntry((TObject*)0, "All curves: slice / ref", "");
+      legRatioInfo->Draw();
+    }
+  } else {
+    std::cout << "WARNING: missing forward/central eta maps. Skipping eta(forward/central) in boson slices." << std::endl;
+  }
+
   // Save comparison plots next to the input file for quick checks.
   TString outPrefix;
   if (isFiducial) outPrefix += "fiducial_";
@@ -914,12 +1325,24 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   cDEtaBosonOverlay->SaveAs(prefixed(isY ? "compare_projection_overlay_deltaeta_in_yZ_slices.pdf" : "compare_projection_overlay_deltaeta_in_pTZ_slices.pdf").Data());
   if (cPtLeadSubleadInYSlices) cPtLeadSubleadInYSlices->SaveAs(prefixed("compare_projection_overlay_pT_lead_vs_sublead_in_yZ_slices.pdf").Data());
   if (cEtaLeadSubleadInYSlices) cEtaLeadSubleadInYSlices->SaveAs(prefixed("compare_projection_overlay_eta_lead_vs_sublead_in_yZ_slices.pdf").Data());
+  if (cPtFwdCenInBosonSlices) cPtFwdCenInBosonSlices->SaveAs(prefixed(isY ? "compare_projection_overlay_pT_forward_in_yZ_slices.pdf" : "compare_projection_overlay_pT_forward_in_pTZ_slices.pdf").Data());
+  if (cPtFwdBosonOverlay) cPtFwdBosonOverlay->SaveAs(prefixed(isY ? "compare_projection_overlay_pT_forward_all_in_yZ_slices.pdf" : "compare_projection_overlay_pT_forward_all_in_pTZ_slices.pdf").Data());
+  if (cEtaFwdCenInBosonSlices) cEtaFwdCenInBosonSlices->SaveAs(prefixed(isY ? "compare_projection_overlay_eta_forward_in_yZ_slices.pdf" : "compare_projection_overlay_eta_forward_in_pTZ_slices.pdf").Data());
+  if (cEtaFwdBosonOverlay) cEtaFwdBosonOverlay->SaveAs(prefixed(isY ? "compare_projection_overlay_eta_forward_all_in_yZ_slices.pdf" : "compare_projection_overlay_eta_forward_all_in_pTZ_slices.pdf").Data());
+  if (cPtFwdCen) cPtFwdCen->SaveAs(prefixed("compare_projection_pt_forward_vs_central.pdf").Data());
+  if (cEtaFwdCen) cEtaFwdCen->SaveAs(prefixed("compare_projection_eta_forward_vs_central.pdf").Data());
 
   std::cout << "Saved plots:" << std::endl;
   if (cEtaLeadSublead2D) std::cout << "  " << prefixed("compare_2D_eta_eleading_vs_esubleading.pdf") << std::endl;
   std::cout << "  " << prefixed("compare_2D_pt_leading_vs_subleading.pdf") << std::endl;
   std::cout << "  " << prefixed("compare_projection_costh_lead_vs_sublead.pdf") << std::endl;
   std::cout << "  " << prefixed("compare_projection_deltaeta_lead_vs_sublead.pdf") << std::endl;
+  if (cPtFwdCen) std::cout << "  " << prefixed("compare_projection_pt_forward_vs_central.pdf") << std::endl;
+  if (cEtaFwdCen) std::cout << "  " << prefixed("compare_projection_eta_forward_vs_central.pdf") << std::endl;
+  if (cPtFwdCenInBosonSlices) std::cout << "  " << prefixed(isY ? "compare_projection_overlay_pT_forward_in_yZ_slices.pdf" : "compare_projection_overlay_pT_forward_in_pTZ_slices.pdf") << std::endl;
+  if (cPtFwdBosonOverlay) std::cout << "  " << prefixed(isY ? "compare_projection_overlay_pT_forward_all_in_yZ_slices.pdf" : "compare_projection_overlay_pT_forward_all_in_pTZ_slices.pdf") << std::endl;
+  if (cEtaFwdCenInBosonSlices) std::cout << "  " << prefixed(isY ? "compare_projection_overlay_eta_forward_in_yZ_slices.pdf" : "compare_projection_overlay_eta_forward_in_pTZ_slices.pdf") << std::endl;
+  if (cEtaFwdBosonOverlay) std::cout << "  " << prefixed(isY ? "compare_projection_overlay_eta_forward_all_in_yZ_slices.pdf" : "compare_projection_overlay_eta_forward_all_in_pTZ_slices.pdf") << std::endl;
   std::cout << "  " << prefixed("compare_projection_deltaeta_vs_costh.pdf") << std::endl;
   std::cout << "  " << prefixed("compare_projection_costh_pt_slices_lead_vs_sublead.pdf") << std::endl;
   std::cout << "  " << prefixed("compare_projection_deltaeta_pt_slices_lead_vs_sublead.pdf") << std::endl;

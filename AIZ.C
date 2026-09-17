@@ -20,14 +20,16 @@
 using namespace std;
 
 bool sherpa = false;
-bool test = true; // set to true for quick test with limited events; set to false for full run
+bool test = false; // set to true for quick test with limited events; set to false for full run
 bool override = false; // set to true to overwrite existing output file without prompt
 bool normXS = true;
 bool ifTrueOnly = true;
-bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCut = false; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutEtaonly = false ;
 bool FiducialCutCCCF = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
-bool FiducialCutCFonly = true ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCutCFonly = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+int polynomialIndex = 6; // basis polynomial used by the configurable polynomial diagnostics, 0 through 7
+bool appendPolynomialOutputs = true; // keep P0-P7 diagnostic objects in the same ROOT file across runs
 
 // Weighted means with numerator/denominator covariance, including signed MC
 // weights. Keep sums so bins with a cancelling denominator are identifiable.
@@ -70,15 +72,21 @@ struct Moment {
       mean->SetBinError(b, std::sqrt(std::max(0., variance)));
       valid->SetBinContent(b, 1.);
     }
-    mean->Write(); sumW->Write(); sumWX->Write();
-    sumW2X->Write(); sumW2X2->Write(); valid->Write();
+    mean->Write("", TObject::kOverwrite); sumW->Write("", TObject::kOverwrite);
+    sumWX->Write("", TObject::kOverwrite);
+    sumW2X->Write("", TObject::kOverwrite); sumW2X2->Write("", TObject::kOverwrite);
+    valid->Write("", TObject::kOverwrite);
   }
 };
 }
 
-// Analytic basis plot: callable without any ntuple. Load TLVUtils.cxx first.
-TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.pdf") {
-  TH2D *map = new TH2D("P6_polynomial", ";cos#theta_{CS};#phi_{CS};P_{6}",
+// Analytic basis and angular projections. Load TLVUtils.cxx first.
+TCanvas* AIZPlotPolynomial(int index, const char* imageName="AIZ_P6_polynomial.pdf", TH2D* selectedMap=nullptr) {
+  if (index < 0 || index > 7) {
+    std::cerr << " polynomialIndex must be between 0 and 7" << std::endl;
+    return nullptr;
+  }
+  TH2D *map = new TH2D(Form("P%d_polynomial", index), Form(";cos#theta_{CS};#phi_{CS};P_{%d}", index),
                        160, -1., 1., 160, 0., 2.*M_PI);
   map->SetDirectory(nullptr);
   std::vector<double> pols;
@@ -86,39 +94,65 @@ TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.pdf") {
     for (int iy=1; iy<=map->GetNbinsY(); ++iy) {
       TLVUtils::getAiPolynoms(map->GetXaxis()->GetBinCenter(ix),
                              map->GetYaxis()->GetBinCenter(iy), pols);
-      map->SetBinContent(ix, iy, pols[6]);
+      map->SetBinContent(ix, iy, pols[index]);
     }
-  map->SetStats(false); map->SetMinimum(-1.); map->SetMaximum(1.);
-  TCanvas *canvas = new TCanvas("c_P6_polynomial", "P6 angular basis", 1200, 500);
-  canvas->Divide(2,1);
+  map->SetStats(false);
+  TCanvas *canvas = new TCanvas(Form("c_P%d_polynomial", index),
+      Form("P%d angular basis and projections", index), 1800, 600);
+  canvas->Divide(3, 1);
   canvas->cd(1)->SetRightMargin(0.17);
   map->Draw("COLZ");
   canvas->cd(2);
-  TLegend *legend = new TLegend(0.57,0.72,0.88,0.88);
+  TLegend *phiLegend = new TLegend(0.58,0.70,0.88,0.88);
+  const double fixedPhi[] = {0., M_PI/2., 3.*M_PI/2.};
   for (int k=0; k<3; ++k) {
-    const double phi = (k==0 ? M_PI/2. : (k==1 ? 3.*M_PI/2. : 0.));
-    TH1D *slice = new TH1D(Form("P6_slice_%d", k),
-        "P_{6} = sin(2#theta) sin#phi;cos#theta_{CS};P_{6}", 200, -1., 1.);
+    TH1D *slice = new TH1D(Form("P%d_costheta_slice_%d", index, k),
+      Form("P_{%d};cos#theta_{CS};P_{%d}", index, index), 200, -1., 1.);
     slice->SetDirectory(nullptr);
     for (int b=1; b<=slice->GetNbinsX(); ++b) {
-      TLVUtils::getAiPolynoms(slice->GetBinCenter(b), phi, pols);
-      slice->SetBinContent(b, pols[6]);
+      TLVUtils::getAiPolynoms(slice->GetBinCenter(b), fixedPhi[k], pols);
+      slice->SetBinContent(b, pols[index]);
+    }
+    slice->SetStats(false); slice->SetMinimum(-1.1); slice->SetMaximum(1.1);
+    slice->SetLineColor(k==0 ? kBlack : (k==1 ? kRed+1 : kBlue+1));
+    slice->SetLineWidth(2);
+    slice->Draw(k==0 ? "HIST" : "HIST SAME");
+    phiLegend->AddEntry(slice, Form("#phi_{CS} = %.1f", fixedPhi[k]), "l");
+  }
+  phiLegend->Draw();
+  canvas->cd(3);
+  TLegend *costhetaLegend = new TLegend(0.58,0.70,0.88,0.88);
+  const double fixedCostheta[] = {-0.5, 0., 0.5};
+  for (int k=0; k<3; ++k) {
+    TH1D *slice = new TH1D(Form("P%d_phi_slice_%d", index, k),
+      Form("P_{%d};#phi_{CS};P_{%d}", index, index), 200, 0., 2.*M_PI);
+    slice->SetDirectory(nullptr);
+    for (int b=1; b<=slice->GetNbinsX(); ++b) {
+      TLVUtils::getAiPolynoms(fixedCostheta[k], slice->GetBinCenter(b), pols);
+      slice->SetBinContent(b, pols[index]);
     }
     slice->SetStats(false); slice->SetMinimum(-1.1); slice->SetMaximum(1.1);
     slice->SetLineColor(k==0 ? kRed+1 : (k==1 ? kBlue+1 : kBlack));
     slice->SetLineWidth(2);
     slice->Draw(k==0 ? "HIST" : "HIST SAME");
-    legend->AddEntry(slice, k==0 ? "#phi = #pi/2" : (k==1 ? "#phi = 3#pi/2" : "#phi = 0"), "l");
+    costhetaLegend->AddEntry(slice, Form("cos#theta_{CS} = %.1f", fixedCostheta[k]), "l");
   }
-  legend->Draw();
+  costhetaLegend->Draw();
   if (imageName && imageName[0]) canvas->SaveAs(imageName);
   return canvas;
 }
 
+TCanvas* AIZPlotP6(const char* imageName="AIZ_P6_polynomial.pdf", TH2D* selectedMap=nullptr) {
+  return AIZPlotPolynomial(6, imageName, selectedMap);
+}
+
 // Macro to plot Ai coefficient from Sherpa and Powheg Z samples
-void AIZ(bool isY=false){
+void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
+
+  if (configuredPolynomialIndex >= 0) polynomialIndex = configuredPolynomialIndex;
 
   cout << " START AIZ " << endl;
+  if (test) cout << " ********************** IS A TEST RUN " << endl;
   cout << "with configuration: " << endl;
   cout << " isY: " << isY << endl;
   cout << " ifTrueOnly: " << ifTrueOnly << endl;
@@ -126,6 +160,11 @@ void AIZ(bool isY=false){
   cout << " FiducialCutEtaonly: " << FiducialCutEtaonly << endl;
   cout << " FiducialCutCCCF: " << FiducialCutCCCF << endl;
   cout << " FiducialCutCFonly: " << FiducialCutCFonly << endl;
+  cout << " polynomialIndex: " << polynomialIndex << endl;
+  if (polynomialIndex < 0 || polynomialIndex > 7) {
+    cout << " ERROR: polynomialIndex must be between 0 and 7" << endl;
+    return;
+  }
   if ( (FiducialCutEtaonly || FiducialCutCCCF || FiducialCutCFonly) && !FiducialCut) {
     cout << " ERROR: FiducialCutEtaonly or FiducialCutCCCF or FiducialCutCFonly cannot be true if FiducialCut is false. Please set FiducialCut to true to apply eta-only fiducial cuts." << endl;
     return;
@@ -231,8 +270,8 @@ void AIZ(bool isY=false){
   if (FiducialCutCCCF) prefix = prefix + "CCCF_";
   if (FiducialCutCFonly) prefix = prefix + "CFonly_";
   TString nameOutput = "AI_Z_"+prefix+outputName+mode+".root";
-  TFile* Output = new TFile(nameOutput);
-  bool isf = true;
+  TFile* Output = new TFile(nameOutput, "UPDATE");
+  bool isf = !Output->IsZombie();
 
   if (Output->IsZombie()) {
     std::cout << " OUTPUT FILE DO NOT EXIST" << std::endl;
@@ -240,9 +279,10 @@ void AIZ(bool isY=false){
   }
 
   if (isf) {
-    if (override) {
+    if (override && !appendPolynomialOutputs) {
+      Output->Close();
       Output  = new TFile(nameOutput,"RECREATE");
-    } else {
+    } else if (!override && !appendPolynomialOutputs) {
       cout << "--> File " << nameOutput << " exist are you sure you want to override ? if yes put override to true " << endl;
       return;
     }
@@ -413,31 +453,39 @@ void AIZ(bool isY=false){
   TH1D *hCosLpos20_40 = new TH1D("cosThetaCSTruth_pos_pt20to40", "cosThetaCSTruth_pos_pt20to40", 50, -1., 1.);
   TH1D *hCosLpos40_80 = new TH1D("cosThetaCSTruth_pos_pt40to80", "cosThetaCSTruth_pos_pt40to80", 50, -1., 1.);
 
-  // P6-sensitive diagnostics use the same selected events and CS convention.
-  // A6_moment = 5<P6> is an Ai estimator ONLY with full angular acceptance.
-  TH1D *hP6 = new TH1D("P6", ";P_{6};Weighted events", 100, -1.000001, 1.000001);
-  TH1D *hAbsP6 = new TH1D("absP6", ";|P_{6}|;Weighted events", 50, 0., 1.000001);
-  TH2D *hP6ForwardCharge = new TH2D("P6_vs_forwardCharge_CF",
-      ";Charge of forward lepton (CF only);P_{6}", 2, -2., 2., 100, -1.000001, 1.000001);
-  hP6->Sumw2(); hAbsP6->Sumw2(); hP6ForwardCharge->Sumw2();
-  const char* p6Axes[] = {"deltaEta", "zPt", "absZY", "acoplanarity"};
-  const char* p6Labels[] = {"|#Delta#eta_{ee}|", "p_{T}(Z) [GeV]", "|y(Z)|", "#pi-|#Delta#phi_{ee}|"};
-  const int p6NBins[] = {40, 60, 25, 32};
-  const double p6Max[] = {10., 300., 5., M_PI};
-  std::vector<TH2D*> p6Correlations;
-  std::vector<AIZP6::Moment*> p6Moments, p6Signs, p6LeverArms;
+    // Configurable polynomial diagnostics use the same selected events and CS convention.
+    // The historical 5<P6> moment convention is retained for the default index 6.
+    const TString polynomialLabel = Form("P%d", polynomialIndex);
+    const double polynomialMomentScale = (polynomialIndex == 6) ? 5. : 1.;
+    TH1D *hPolynomial = new TH1D(polynomialLabel, Form(";P_{%d};Weighted events", polynomialIndex),
+      100, -1.000001, 1.000001);
+    TH1D *hAbsPolynomial = new TH1D("abs"+polynomialLabel,
+      Form(";|P_{%d}|;Weighted events", polynomialIndex), 50, 0., 1.000001);
+    TH2D *hPolynomialForwardCharge = new TH2D(polynomialLabel+"_vs_forwardCharge_CF",
+      Form(";Charge of forward lepton (CF only);P_{%d}", polynomialIndex),
+      2, -2., 2., 100, -1.000001, 1.000001);
+    TH2D *hPolynomialSelectedAngles = new TH2D(polynomialLabel+"_selected_angles",
+      ";cos#theta_{CS};#phi_{CS};Selected weighted events", 160, -1., 1., 160, 0., 2.*M_PI);
+    hPolynomial->Sumw2(); hAbsPolynomial->Sumw2(); hPolynomialForwardCharge->Sumw2();
+    hPolynomialSelectedAngles->Sumw2();
+    const char* polynomialAxes[] = {"deltaEta", "zPt", "absZY", "acoplanarity"};
+    const char* polynomialLabels[] = {"|#Delta#eta_{ee}|", "p_{T}(Z) [GeV]", "|y(Z)|", "#pi-|#Delta#phi_{ee}|"};
+    const int polynomialNBins[] = {40, 60, 25, 32};
+    const double polynomialMax[] = {10., 300., 5., M_PI};
+    std::vector<TH2D*> polynomialCorrelations;
+    std::vector<AIZP6::Moment*> polynomialMoments, polynomialSigns, polynomialLeverArms;
   for (int j=0; j<4; ++j) {
-    p6Correlations.push_back(new TH2D(Form("P6_vs_%s", p6Axes[j]),
-        Form(";%s;P_{6}", p6Labels[j]), p6NBins[j], 0., p6Max[j], 100, -1.000001, 1.000001));
-    p6Correlations.back()->Sumw2();
-    p6Moments.push_back(new AIZP6::Moment(Form("A6_moment_vs_%s", p6Axes[j]),
-        Form("Selected-sample moment;%s;5#LT P_{6}#GT", p6Labels[j]), p6NBins[j], 0., p6Max[j]));
-    p6Signs.push_back(new AIZP6::Moment(Form("P6_signAsym_vs_%s", p6Axes[j]),
-        Form("Selected-sample sign asymmetry;%s;#LT sign(P_{6})#GT", p6Labels[j]), p6NBins[j], 0., p6Max[j]));
-    p6LeverArms.push_back(new AIZP6::Moment(Form("P6_squared_vs_%s", p6Axes[j]),
-        Form("Angular lever arm;%s;#LT P_{6}^{2}#GT", p6Labels[j]), p6NBins[j], 0., p6Max[j]));
+    polynomialCorrelations.push_back(new TH2D(Form("%s_vs_%s", polynomialLabel.Data(), polynomialAxes[j]),
+      Form(";%s;P_{%d}", polynomialLabels[j], polynomialIndex), polynomialNBins[j], 0., polynomialMax[j], 100, -1.000001, 1.000001));
+    polynomialCorrelations.back()->Sumw2();
+    polynomialMoments.push_back(new AIZP6::Moment(Form("%s_moment_vs_%s", polynomialLabel.Data(), polynomialAxes[j]),
+      Form("Selected-sample moment;%s;%g#LT P_{%d}#GT", polynomialLabels[j], polynomialMomentScale, polynomialIndex), polynomialNBins[j], 0., polynomialMax[j]));
+    polynomialSigns.push_back(new AIZP6::Moment(Form("%s_signAsym_vs_%s", polynomialLabel.Data(), polynomialAxes[j]),
+      Form("Selected-sample sign asymmetry;%s;#LT sign(P_{%d})#GT", polynomialLabels[j], polynomialIndex), polynomialNBins[j], 0., polynomialMax[j]));
+    polynomialLeverArms.push_back(new AIZP6::Moment(Form("%s_squared_vs_%s", polynomialLabel.Data(), polynomialAxes[j]),
+      Form("Angular lever arm;%s;#LT P_{%d}^{2}#GT", polynomialLabels[j], polynomialIndex), polynomialNBins[j], 0., polynomialMax[j]));
   }
-  Long64_t p6UndefinedPlane = 0;
+    Long64_t polynomialUndefinedPlane = 0;
 
   Long64_t N = tree->GetEntries();
   if (test) N = std::min<Long64_t>(N, 100000);
@@ -588,6 +636,7 @@ void AIZ(bool isY=false){
     const double phiCSTruthWrapped = TVector2::Phi_0_2pi(phiCSTruth);
 
     Zmass->Fill(z.M(), weight);
+    hPolynomialSelectedAngles->Fill(costheta, phi, weight);
     hctheta->Fill(costheta, weight);
     hctheta_truth->Fill(cosThetaCSTruth, weight);
     hphi_truth->Fill(phiCSTruthWrapped, weight);
@@ -701,23 +750,31 @@ void AIZ(bool isY=false){
     // At zero Z transverse momentum the hadron plane (and phi) is undefined.
     // Exclude it from the new diagnostics and count it explicitly.
     if (z.Pt() > 1.e-9 && std::isfinite(weight)) {
-      const double p6 = aipols[6];
-      const double signP6 = (p6 > 0.) ? 1. : ((p6 < 0.) ? -1. : 0.);
-      hP6->Fill(p6, weight);
-      hAbsP6->Fill(fabs(p6), weight);
+      const double polynomialValue = aipols[polynomialIndex];
+      const double signPolynomial = (polynomialValue > 0.) ? 1. : ((polynomialValue < 0.) ? -1. : 0.);
+      hPolynomial->Fill(polynomialValue, weight);
+      hAbsPolynomial->Fill(fabs(polynomialValue), weight);
       const double coordinates[] = {dEta_ll, z.Pt(), fabs(z.Rapidity()), M_PI-dPhi_ll};
       for (int j=0; j<4; ++j) {
-        p6Correlations[j]->Fill(coordinates[j], p6, weight);
-        p6Moments[j]->Fill(coordinates[j], 5.*p6, weight);
-        p6Signs[j]->Fill(coordinates[j], signP6, weight);
-        p6LeverArms[j]->Fill(coordinates[j], p6*p6, weight);
+        polynomialCorrelations[j]->Fill(coordinates[j], polynomialValue, weight);
+        polynomialMoments[j]->Fill(coordinates[j], polynomialMomentScale*polynomialValue, weight);
+        polynomialSigns[j]->Fill(coordinates[j], signPolynomial, weight);
+        polynomialLeverArms[j]->Fill(coordinates[j], polynomialValue*polynomialValue, weight);
       }
-      const bool negForward = fabs(em.Eta()) >= 2.5;
-      const bool posForward = fabs(ep.Eta()) >= 2.5;
-      if (negForward != posForward)
-        hP6ForwardCharge->Fill(negForward ? -1. : 1., p6, weight);
+      // Define the forward lepton as the one with the larger absolute eta,
+      // independent of whether either lepton crosses |eta| = 2.5.
+      const double absEtaNeg = fabs(em.Eta());
+      const double absEtaPos = fabs(ep.Eta());
+      const bool negForward = absEtaNeg > absEtaPos;
+      const bool posForward = absEtaPos > absEtaNeg;
+      if (negForward || posForward) {
+        hPolynomialForwardCharge->Fill(negForward ? -1. : 1., polynomialValue, weight);
+      } else {
+        // Exact ties use the X-axis overflow bin rather than assigning a charge.
+        hPolynomialForwardCharge->Fill(3., polynomialValue, weight);
+      }
     } else if (z.Pt() <= 1.e-9) {
-      ++p6UndefinedPlane;
+      ++polynomialUndefinedPlane;
     }
 
     // Keep the historical AIZ histogram convention (scaled basis) for output
@@ -762,54 +819,62 @@ void AIZ(bool isY=false){
   }
 
   Output->cd();
-  AIZP6::Style(hP6); AIZP6::Style(hAbsP6); AIZP6::Style(hP6ForwardCharge);
-  hP6ForwardCharge->GetXaxis()->SetBinLabel(1, "e^{-} forward");
-  hP6ForwardCharge->GetXaxis()->SetBinLabel(2, "e^{+} forward");
-  hP6->Write(); hAbsP6->Write(); hP6ForwardCharge->Write();
-  TH1D p6Skipped("P6_undefinedPlane", ";Reason;Unweighted events", 1, 0., 1.);
-  p6Skipped.SetDirectory(nullptr);
-  p6Skipped.GetXaxis()->SetBinLabel(1, "pT(Z) <= 1e-9 GeV");
-  p6Skipped.SetBinContent(1, p6UndefinedPlane);
-  p6Skipped.Write();
+  AIZP6::Style(hPolynomial); AIZP6::Style(hAbsPolynomial); AIZP6::Style(hPolynomialForwardCharge);
+  hPolynomialForwardCharge->GetXaxis()->SetBinLabel(1, "e^{-} forward");
+  hPolynomialForwardCharge->GetXaxis()->SetBinLabel(2, "e^{+} forward");
+  hPolynomialForwardCharge->GetXaxis()->SetBinLabel(3, "equal |#eta| (overflow)");
+  hPolynomial->Write("", TObject::kOverwrite);
+  hAbsPolynomial->Write("", TObject::kOverwrite);
+  hPolynomialForwardCharge->Write("", TObject::kOverwrite);
+  hPolynomialSelectedAngles->Write("", TObject::kOverwrite);
+  TH1D polynomialSkipped(Form("%s_undefinedPlane", polynomialLabel.Data()), ";Reason;Unweighted events", 1, 0., 1.);
+  polynomialSkipped.SetDirectory(nullptr);
+  polynomialSkipped.GetXaxis()->SetBinLabel(1, "pT(Z) <= 1e-9 GeV");
+  polynomialSkipped.SetBinContent(1, polynomialUndefinedPlane);
+  polynomialSkipped.Write("", TObject::kOverwrite);
   for (int j=0; j<4; ++j) {
-    AIZP6::Style(p6Correlations[j]);
-    AIZP6::Style(p6Moments[j]->mean);
-    AIZP6::Style(p6Signs[j]->mean);
-    AIZP6::Style(p6LeverArms[j]->mean);
-    p6Correlations[j]->Write();
-    p6Moments[j]->Write(); p6Signs[j]->Write(); p6LeverArms[j]->Write();
+    AIZP6::Style(polynomialCorrelations[j]);
+    AIZP6::Style(polynomialMoments[j]->mean);
+    AIZP6::Style(polynomialSigns[j]->mean);
+    AIZP6::Style(polynomialLeverArms[j]->mean);
+    polynomialCorrelations[j]->Write("", TObject::kOverwrite);
+    polynomialMoments[j]->Write(); polynomialSigns[j]->Write(); polynomialLeverArms[j]->Write();
   }
   TString plotPrefix = nameOutput;
   plotPrefix.ReplaceAll(".root", "");
-  TCanvas *cP6Polynomial = AIZPlotP6((plotPrefix+"_P6_polynomial.pdf").Data());
-  cP6Polynomial->Write();
-  TCanvas *cP6 = new TCanvas("c_P6_observables", "P6-sensitive observables", 1400, 1000);
-  cP6->Divide(3,3);
+  TString polynomialSuffix = Form("_P%d", polynomialIndex);
+  TCanvas *cPolynomial = AIZPlotPolynomial(polynomialIndex,
+      (plotPrefix+polynomialSuffix+"_polynomial.pdf").Data(), hPolynomialSelectedAngles);
+  cPolynomial->Write("", TObject::kOverwrite);
+  TCanvas *cObservables = new TCanvas(Form("c_P%d_observables", polynomialIndex),
+      Form("P%d-sensitive observables", polynomialIndex), 1400, 1000);
+  cObservables->Divide(3,3);
   for (int pad=1; pad<=9; ++pad) {
-    cP6->cd(pad)->SetLeftMargin(0.18);
+    cObservables->cd(pad)->SetLeftMargin(0.18);
     gPad->SetBottomMargin(0.15); gPad->SetRightMargin(0.14);
   }
-  cP6->cd(1); hP6->Draw("E");
-  cP6->cd(2); hAbsP6->Draw("E");
-  cP6->cd(3); hP6ForwardCharge->Draw("COLZ");
+  cObservables->cd(1); hPolynomial->Draw("E");
+  cObservables->cd(2); hAbsPolynomial->Draw("E");
+  cObservables->cd(3); hPolynomialForwardCharge->Draw("COLZ");
   for (int j=0; j<3; ++j) {
-    cP6->cd(4+j); p6Correlations[j]->Draw("COLZ");
-    cP6->cd(7+j); p6Moments[j]->mean->SetStats(false); p6Moments[j]->mean->Draw("E");
+    cObservables->cd(4+j); polynomialCorrelations[j]->Draw("COLZ");
+    cObservables->cd(7+j); polynomialMoments[j]->mean->SetStats(false); polynomialMoments[j]->mean->Draw("E");
   }
-  cP6->Write();
-  cP6->SaveAs((plotPrefix+"_P6_observables.pdf").Data());
-  TCanvas *cP6Sensitivity = new TCanvas("c_P6_sensitivity", "P6 asymmetry and lever arm", 1600, 800);
-  cP6Sensitivity->Divide(4,2);
+  cObservables->Write("", TObject::kOverwrite);
+  cObservables->SaveAs((plotPrefix+polynomialSuffix+"_observables.pdf").Data());
+  TCanvas *cSensitivity = new TCanvas(Form("c_P%d_sensitivity", polynomialIndex),
+      Form("P%d asymmetry and lever arm", polynomialIndex), 1600, 800);
+  cSensitivity->Divide(4,2);
   for (int pad=1; pad<=8; ++pad) {
-    cP6Sensitivity->cd(pad)->SetLeftMargin(0.18);
+    cSensitivity->cd(pad)->SetLeftMargin(0.18);
     gPad->SetBottomMargin(0.15);
   }
   for (int j=0; j<4; ++j) {
-    cP6Sensitivity->cd(1+j); p6Signs[j]->mean->SetStats(false); p6Signs[j]->mean->Draw("E");
-    cP6Sensitivity->cd(5+j); p6LeverArms[j]->mean->SetStats(false); p6LeverArms[j]->mean->Draw("E");
+    cSensitivity->cd(1+j); polynomialSigns[j]->mean->SetStats(false); polynomialSigns[j]->mean->Draw("E");
+    cSensitivity->cd(5+j); polynomialLeverArms[j]->mean->SetStats(false); polynomialLeverArms[j]->mean->Draw("E");
   }
-  cP6Sensitivity->Write();
-  cP6Sensitivity->SaveAs((plotPrefix+"_P6_sensitivity.pdf").Data());
+  cSensitivity->Write("", TObject::kOverwrite);
+  cSensitivity->SaveAs((plotPrefix+polynomialSuffix+"_sensitivity.pdf").Data());
 
   A0->Divide(Xsw);
   A1->Divide(Xsw);

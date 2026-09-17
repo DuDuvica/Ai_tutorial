@@ -10,6 +10,22 @@ root -l -q -e '.L TLVUtils.cxx' -e '.L AIZ.C' -e 'override=true;' -e 'test=true;
 root -l -q 'CompareAIZProjections.C("AI_Z_Truth_testPowheg_Y_NormXsec.root", true)'
 ```
 
+The polynomial diagnostics default to `polynomialIndex = 6`. Set it to any value from
+0 to 7 either before calling `AIZ`, or pass it directly as the second argument:
+
+```bash
+root -l -q -e '.L TLVUtils.cxx' -e '.L AIZ.C' -e 'override=true;' -e 'test=true;' -e 'AIZ(true, 2);'
+```
+
+This writes `P2_polynomial.pdf`, `P2_observables.pdf`, and `P2_sensitivity.pdf`
+using the selected polynomial. The existing `A0` through `A7` coefficient histograms
+are still produced independently.
+
+By default, `appendPolynomialOutputs = true`, so running `AIZ` repeatedly with
+different indices keeps all `P0` through `P7` diagnostic histograms and canvases in
+the same ROOT file. Repeating an index updates that index's keys instead of creating
+duplicate cycles. Set `appendPolynomialOutputs = false` to restore replace-file behavior.
+
 ## Files
 
 - `AIW.C`: macro used to produce the reference `Ai` for the MC.

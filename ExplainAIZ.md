@@ -21,20 +21,27 @@ At the top of the macro, the main switches are:
 
 ```cpp
 bool sherpa = false;
-bool test = false;
+bool test = true;
 bool override = false;
 bool normXS = true;
 bool ifTrueOnly = true;
 bool FiducialCut = true;
-bool FiducialCutEtaonly = true;
+bool FiducialCutEtaonly = false;
+bool FiducialCutCCCF = false;
+bool FiducialCutCFonly = true;
+int polynomialIndex = 6;
+bool appendPolynomialOutputs = true;
 ```
 
 With these defaults:
 
 - The macro uses the truth-only Powheg Z->ee ntuple.
 - Sherpa is not active because no Sherpa Z sample path is defined.
-- It applies a fiducial eta cut, `|eta(e)| < 2.5`.
-- It does not apply the lepton `pT > 25 GeV` cut because `FiducialCutEtaonly = true`.
+- It applies the CF-only fiducial selection because `FiducialCutCFonly = true`:
+   both leptons must have `pT > 25 GeV`, with one central lepton (`|eta| < 2.5`)
+   and one forward lepton (`|eta| >= 2.5`).
+- It processes at most 100,000 events because `test = true`. Set `test = false`
+   for full statistics.
 - It refuses to overwrite an existing output file unless `override = true`.
 
 ## Input and Output
@@ -50,12 +57,14 @@ The macro also reads:
 - `MetaData`, to get cross section, k-factor, and filter efficiency.
 - `CutFlow`, to get normalization information.
 
-The default output file name is built from the configuration. For the default settings and `AIZ(false)`, it is:
+The output file name is built from the configuration. With the current defaults and
+`AIZ(false)` in test mode, it is:
 
 ```text
-AI_Z_Truth_Fiducial_EtaOnly_Zai_finalbinningPowheg_pT_NormXsec.root
+AI_Z_Truth_Fiducial_CFonly_testPowheg_pT_NormXsec.root
 ```
 
+Set `test = false` to replace `testPowheg` with `Zai_finalbinningPowheg`.
 For `AIZ(true)`, the output name uses `_Y_` instead of `_pT_`.
 
 ## Event Loop
@@ -129,6 +138,51 @@ A7->Divide(Xsw);
 
 So each bin contains the weighted average value of the corresponding angular coefficient.
 
+## Configurable Polynomial Diagnostics
+
+The diagnostic plots can use any angular basis polynomial returned by
+`TLVUtils::getAiPolynoms`, indexed from 0 through 7:
+
+```cpp
+int polynomialIndex = 6;
+```
+
+`polynomialIndex = 6` preserves the historical default. Before calling `AIZ`, select
+another polynomial, for example:
+
+```cpp
+polynomialIndex = 2;
+AIZ(true);             // use |y(Z)| binning
+```
+
+Alternatively, configure it directly in the `AIZ` call:
+
+```cpp
+AIZ(true, 2);          // use P2 and |y(Z)| binning
+```
+
+The second argument is optional; existing calls such as `AIZ(true)` continue to use
+the global `polynomialIndex` value.
+
+The selected index controls all three related diagnostic PDFs:
+
+- `*_P2_polynomial.pdf`: analytic `P2` basis, selected-event angular map, and slices.
+- `*_P2_observables.pdf`: selected-event `P2` distributions and correlations.
+- `*_P2_sensitivity.pdf`: selected-event sign asymmetry and squared-polynomial lever arms.
+
+Replace `P2` with the selected index. The same index is also used in the corresponding
+ROOT histogram names, such as `P2`, `P2_vs_deltaEta`, and `P2_moment_vs_deltaEta`.
+Values outside 0 through 7 are rejected. These configurable diagnostics are separate
+from the legacy `A0` through `A7` coefficient histograms, which are always produced
+using the historical scaling convention described above.
+
+When `appendPolynomialOutputs = true`, existing output ROOT files are opened in
+`UPDATE` mode. This allows repeated runs with different `polynomialIndex` values to
+keep all `P0` through `P7` diagnostic objects in one file. Repeating an index updates
+that index's keys with `TObject::kOverwrite`, avoiding duplicate cycles for the
+polynomial-specific objects. Set it to `false` when a complete replacement of the
+output file is desired.
+
 ## Histograms Written
 
 The macro writes the main coefficient histograms:
@@ -150,6 +204,9 @@ It also writes many diagnostic histograms, including:
 - `DeltaR`, `DeltaPhi`, and `DeltaEta` between the leptons
 - opening-angle distributions between the two leptons
 - cos(theta) slices in lepton `pT` bins
+
+For the selected `polynomialIndex`, it additionally writes the polynomial diagnostic
+histograms and canvases used by the three configurable PDF outputs.
 
 The macro also writes two comparison canvases:
 
@@ -199,6 +256,7 @@ For a quick test:
 .L TLVUtils.cxx
 .L AIZ.C
 test = true;
+polynomialIndex = 2;  // optional: use P2 for the diagnostic plots
 AIZ(false);
 ```
 

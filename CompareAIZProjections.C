@@ -6,8 +6,10 @@
 #include "TPad.h"
 #include "TLine.h"
 #include "TLatex.h"
+#include "TMath.h"
 #include "TString.h"
 #include "TStyle.h"
+#include <cmath>
 #include <iostream>
 #include <algorithm>
 
@@ -81,6 +83,16 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
               << std::endl;
     f->Close();
     return;
+  }
+
+  // phi_CS is already wrapped by AIZ.C; projections must retain [0, 2*pi).
+  const double phiCSMin = hBosonVsPhi->GetYaxis()->GetXmin();
+  const double phiCSMax = hBosonVsPhi->GetYaxis()->GetXmax();
+  if (std::abs(phiCSMin) > 1e-9 || std::abs(phiCSMax - 2.0 * TMath::Pi()) > 1e-9) {
+    std::cout << "WARNING: " << hBosonVsPhi->GetName()
+              << " uses phi_CS range [" << phiCSMin << ", " << phiCSMax
+              << "] instead of the ATLAS [0, 2*pi) convention. "
+              << "Regenerate the input with the current AIZ.C." << std::endl;
   }
 
   gStyle->SetOptStat(0);

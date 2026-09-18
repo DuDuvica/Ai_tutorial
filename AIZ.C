@@ -522,6 +522,12 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   }
     Long64_t polynomialUndefinedPlane = 0;
 
+  // Polar-angle mean, independent of the configurable P0-P7 diagnostics.
+  // The upper edge includes the physical endpoint acoplanarity = pi.
+  AIZP6::Moment sin2ThetaVsAcoplanarity("sin2ThetaCS_mean_vs_acoplanarity",
+      "Selected-sample mean;#pi-|#Delta#phi_{ee}| [rad];#LT sin^{2}#theta_{CS}#GT",
+      32, 0., std::nextafter(M_PI, INFINITY));
+
   Long64_t N = tree->GetEntries();
   if (test) N = std::min<Long64_t>(N, 100000);
 
@@ -669,7 +675,17 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     TLVUtils::getAiPolynoms(costheta, phi, aipols);
 
     // Guard against non-finite outputs before filling histograms.
-    if (!std::isfinite(costheta) || !std::isfinite(phi)) continue;
+    if (!std::isfinite(costheta)) continue;
+
+    // sin^2(theta_CS) needs no azimuthal hadron plane, so retain finite
+    // polar angles even at zero Z pT or when phi_CS is undefined.
+    const double polarWeight = normXS ? mcEventWeight : 1.0;
+    const double acoplanarity = M_PI - fabs(em.DeltaPhi(ep));
+    if (std::isfinite(polarWeight) && std::isfinite(acoplanarity)) {
+      const double sin2ThetaCS = std::max(0., 1. - costheta*costheta);
+      sin2ThetaVsAcoplanarity.Fill(acoplanarity, sin2ThetaCS, polarWeight);
+    }
+    if (!std::isfinite(phi)) continue;
 
     double weight = 1.0;
     if (normXS) weight = mcEventWeight; //weight *= norm;
@@ -877,6 +893,19 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   }
   TString plotPrefix = nameOutput;
   plotPrefix.ReplaceAll(".root", "");
+  AIZP6::Style(sin2ThetaVsAcoplanarity.mean);
+  sin2ThetaVsAcoplanarity.mean->SetLineColor(kBlue+1);
+  sin2ThetaVsAcoplanarity.mean->SetMarkerColor(kBlue+1);
+  sin2ThetaVsAcoplanarity.mean->SetMarkerStyle(20);
+  sin2ThetaVsAcoplanarity.mean->SetMarkerSize(0.7);
+  sin2ThetaVsAcoplanarity.Write();
+  TCanvas *cSin2Theta = new TCanvas("c_sin2ThetaCS_vs_acoplanarity",
+      "Mean sin squared Collins-Soper polar angle", 850, 650);
+  cSin2Theta->SetLeftMargin(0.16);
+  cSin2Theta->SetBottomMargin(0.14);
+  sin2ThetaVsAcoplanarity.mean->Draw("E1");
+  cSin2Theta->Write("", TObject::kOverwrite);
+  cSin2Theta->SaveAs((plotPrefix+"_sin2ThetaCS_vs_acoplanarity.pdf").Data());
   TString polynomialSuffix = Form("_P%d", polynomialIndex);
   TCanvas *cPolynomial = AIZPlotPolynomial(polynomialIndex,
       (plotPrefix+polynomialSuffix+"_polynomial.pdf").Data(), hPolynomialSelectedAngles);

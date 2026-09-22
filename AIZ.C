@@ -522,6 +522,21 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   }
     Long64_t polynomialUndefinedPlane = 0;
 
+  // Raw count asymmetries: unit weights, independently of normXS.
+  // The forward lepton is the one with larger |eta|; retain signed lab eta/phi.
+  const char* forwardAxes[] = {"forwardEta", "forwardPhi", "forwardPt"};
+  const char* forwardLabels[] = {"#eta(e_{fwd})", "#phi(e_{fwd}) [rad]", "p_{T}(e_{fwd}) [GeV]"};
+  const int forwardBins[] = {49, 8, 16};
+  const double forwardMin[] = {-4.9, -3.2, 20.};
+  const double forwardMax[] = {4.9, 3.2, 100.};
+  std::vector<AIZP6::Moment*> polynomialForwardRaw;
+  for (int j=0; j<3; ++j) {
+    polynomialForwardRaw.push_back(new AIZP6::Moment(
+      Form("%s_rawAsym_vs_%s", polynomialLabel.Data(), forwardAxes[j]),
+      Form("Raw count asymmetry;%s;A^{raw}_{%d}", forwardLabels[j], polynomialIndex),
+      forwardBins[j], forwardMin[j], forwardMax[j]));
+  }
+
   // Polar-angle mean, independent of the configurable P0-P7 diagnostics.
   // The upper edge includes the physical endpoint acoplanarity = pi.
   AIZP6::Moment sin2ThetaVsAcoplanarity("sin2ThetaCS_mean_vs_acoplanarity",
@@ -820,6 +835,15 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
       const bool posForward = absEtaPos > absEtaNeg;
       if (negForward || posForward) {
         hPolynomialForwardCharge->Fill(negForward ? -1. : 1., polynomialValue, weight);
+        const TLorentzVector& forward = negForward ? em : ep;
+        const double forwardCoordinates[] = {forward.Eta(), forward.Phi(), forward.Pt()};
+        // P=0 contributes to Ntotal only. Exact |eta| ties have no unique
+        // forward lepton and are excluded from these three asymmetries.
+        if (std::isfinite(polynomialValue)) {
+          for (int j=0; j<3; ++j) {
+            polynomialForwardRaw[j]->Fill(forwardCoordinates[j], signPolynomial, 1.);
+          }
+        }
       } else {
         // Exact ties use the X-axis overflow bin rather than assigning a charge.
         hPolynomialForwardCharge->Fill(3., polynomialValue, weight);
@@ -907,6 +931,24 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   cSin2Theta->Write("", TObject::kOverwrite);
   cSin2Theta->SaveAs((plotPrefix+"_sin2ThetaCS_vs_acoplanarity.pdf").Data());
   TString polynomialSuffix = Form("_P%d", polynomialIndex);
+  TCanvas *cForwardRaw = new TCanvas(Form("c_P%d_forwardRawAsym", polynomialIndex),
+      Form("P%d raw forward-electron asymmetries", polynomialIndex), 1800, 600);
+  cForwardRaw->Divide(3,1);
+  for (int j=0; j<3; ++j) {
+    polynomialForwardRaw[j]->Write();
+    TH1D* raw = polynomialForwardRaw[j]->mean;
+    AIZP6::Style(raw);
+    raw->SetMarkerStyle(20);
+    raw->SetMarkerSize(0.7);
+    raw->SetMinimum(-1.05);
+    raw->SetMaximum(1.05);
+    raw->Write("", TObject::kOverwrite);
+    cForwardRaw->cd(j+1)->SetLeftMargin(0.16);
+    gPad->SetBottomMargin(0.15);
+    raw->Draw("E1");
+  }
+  cForwardRaw->Write("", TObject::kOverwrite);
+  cForwardRaw->SaveAs((plotPrefix+polynomialSuffix+"_forward_raw_asymmetry.pdf").Data());
   TCanvas *cPolynomial = AIZPlotPolynomial(polynomialIndex,
       (plotPrefix+polynomialSuffix+"_polynomial.pdf").Data(), hPolynomialSelectedAngles);
   cPolynomial->Write("", TObject::kOverwrite);

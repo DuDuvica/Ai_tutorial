@@ -20,17 +20,26 @@
 using namespace std;
 
 bool sherpa = false;
-bool test = false; // set to true for quick test with limited events; set to false for full run
+bool test = true; // set to true for quick test with limited events; set to false for full run
 bool override = true; // set to true to overwrite existing output file without prompt
 bool normXS = true;
 bool ifTrueOnly = true;
 bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutEtaonly = false ;
-bool FiducialCutCCCF = true ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCutCCCF = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCFonly = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCCAsym = false ; // asymmetric CC pT thresholds: 27 GeV leading, 25 GeV subleading
 int polynomialIndex = 6; // basis polynomial used by the configurable polynomial diagnostics, 0 through 7
 bool appendPolynomialOutputs = false; // keep P0-P7 diagnostic objects in the same ROOT file across runs
+
+// Determine efficiency histogram suffix based on active fiducial cut
+TString effSuffix = "_CC";
+if (FiducialCutCCAsym) {
+  effSuffix = "_CCAsym";
+} else if (FiducialCutEtaonly) {
+  effSuffix = "_EtaOnly";
+}
+// Default is "_CC" for symmetric CC cut
 
 // Weighted means with numerator/denominator covariance, including signed MC
 // weights. Keep sums so bins with a cancelling denominator are identifiable.
@@ -206,6 +215,23 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     cout << " ERROR: FiducialCutEtaonly, FiducialCutCCCF, FiducialCutCFonly, or FiducialCutCCAsym cannot be true if FiducialCut is false. Please set FiducialCut to true to apply fiducial cuts." << endl;
     return;
   }
+  
+  // Ensure only one fiducial cut mode is active at a time
+  int numActiveCuts = 0;
+  if (FiducialCutEtaonly) numActiveCuts++;
+  if (FiducialCutCCCF) numActiveCuts++;
+  if (FiducialCutCFonly) numActiveCuts++;
+  if (FiducialCutCCAsym) numActiveCuts++;
+  
+  if (numActiveCuts > 1) {
+    cout << " ERROR: Only one of FiducialCutEtaonly, FiducialCutCCCF, FiducialCutCFonly, or FiducialCutCCAsym can be true at a time." << endl;
+    cout << " Currently active cuts:" << endl;
+    if (FiducialCutEtaonly) cout << "  - FiducialCutEtaonly = true" << endl;
+    if (FiducialCutCCCF) cout << "  - FiducialCutCCCF = true" << endl;
+    if (FiducialCutCFonly) cout << "  - FiducialCutCFonly = true" << endl;
+    if (FiducialCutCCAsym) cout << "  - FiducialCutCCAsym = true" << endl;
+    return;
+  }
 
   double xsecAMI = 0;
 
@@ -306,6 +332,7 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   if (FiducialCutEtaonly) prefix = prefix + "EtaOnly_";
   if (FiducialCutCCCF) prefix = prefix + "CCCF_";
   if (FiducialCutCFonly) prefix = prefix + "CFonly_";
+  if (FiducialCutCCAsym) prefix = prefix + "CCAsym_";
   TString nameOutput = "AI_Z_"+prefix+outputName+mode+".root";
   TFile* Output = new TFile(nameOutput, "UPDATE");
   bool isf = !Output->IsZombie();
@@ -457,6 +484,32 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   TH1D *hAcceptance_leadingPt = new TH1D("acceptance_leadingPt", ";p_{T}(leading l) [GeV];Events", pt2dBins, 0., pt2dMax);
   TH1D *hAcceptance_subleadingPt = new TH1D("acceptance_subleadingPt", ";p_{T}(subleading l) [GeV];Events", pt2dBins, 0., pt2dMax);
   TH2D *hAcceptance_leading_vs_subleading = new TH2D("acceptance_leadingPt_vs_subleadingPt", ";p_{T}(leading l) [GeV];p_{T}(subleading l) [GeV]", pt2dBins, 0., pt2dMax, pt2dBins, 0., pt2dMax);
+
+  // Efficiency diagnostics: before/after histograms for active fiducial cut
+  // These measure acceptance loss when fiducial cuts are applied
+  // Names are dynamically assigned based on active fiducial cut mode (CC, EtaOnly, or CCAsym)
+  TH1D *hEff_costheta_before = new TH1D(Form("eff_costheta_before%s", effSuffix.Data()), ";cos#theta_{CS};Events before cut", 100, -1., 1.);
+  TH1D *hEff_costheta_after = new TH1D(Form("eff_costheta_after%s", effSuffix.Data()), ";cos#theta_{CS};Events after cut", 100, -1., 1.);
+  TH1D *hEff_leadingPt_before = new TH1D(Form("eff_leadingPt_before%s", effSuffix.Data()), ";p_{T}(leading l) [GeV];Events before cut", pt2dBins, 0., pt2dMax);
+  TH1D *hEff_leadingPt_after = new TH1D(Form("eff_leadingPt_after%s", effSuffix.Data()), ";p_{T}(leading l) [GeV];Events after cut", pt2dBins, 0., pt2dMax);
+  TH1D *hEff_subleadingPt_before = new TH1D(Form("eff_subleadingPt_before%s", effSuffix.Data()), ";p_{T}(subleading l) [GeV];Events before cut", pt2dBins, 0., pt2dMax);
+  TH1D *hEff_subleadingPt_after = new TH1D(Form("eff_subleadingPt_after%s", effSuffix.Data()), ";p_{T}(subleading l) [GeV];Events after cut", pt2dBins, 0., pt2dMax);
+  TH2D *hEff_leadPtVsSubleadPt_before = new TH2D(Form("eff_leadPtVsSubleadPt_before%s", effSuffix.Data()), ";p_{T}(leading l) [GeV];p_{T}(subleading l) [GeV];Events before cut", pt2dBins, 0., pt2dMax, pt2dBins, 0., pt2dMax);
+  TH2D *hEff_leadPtVsSubleadPt_after = new TH2D(Form("eff_leadPtVsSubleadPt_after%s", effSuffix.Data()), ";p_{T}(leading l) [GeV];p_{T}(subleading l) [GeV];Events after cut", pt2dBins, 0., pt2dMax, pt2dBins, 0., pt2dMax);
+
+  // Lepton-lepton efficiency diagnostics with dynamic suffix
+  TH1D *hEff_deltaEta_before = new TH1D(Form("eff_deltaEta_before%s", effSuffix.Data()), ";|#Delta#eta(l_{1},l_{2})|;Events before cut", 100, 0.0, 10.0);
+  TH1D *hEff_deltaEta_after = new TH1D(Form("eff_deltaEta_after%s", effSuffix.Data()), ";|#Delta#eta(l_{1},l_{2})|;Events after cut", 100, 0.0, 10.0);
+  TH2D *hEff_etaLeadVsSubleadAbs_before = new TH2D(Form("eff_etaLeadVsSubleadAbs_before%s", effSuffix.Data()), ";|#eta(leading l)|;|#eta(subleading l)|;Events before cut", 20, 0., 5, 20, 0., 5);
+  TH2D *hEff_etaLeadVsSubleadAbs_after = new TH2D(Form("eff_etaLeadVsSubleadAbs_after%s", effSuffix.Data()), ";|#eta(leading l)|;|#eta(subleading l)|;Events after cut", 20, 0., 5, 20, 0., 5);
+  
+  // Z boson efficiency diagnostics with dynamic suffix
+  TH1D *hEff_pT_Z_before = new TH1D(Form("eff_pT_Z_before%s", effSuffix.Data()), ";p_{T}(Z) [GeV];Events before cut", zPtBins, 0., zPtMax);
+  TH1D *hEff_pT_Z_after = new TH1D(Form("eff_pT_Z_after%s", effSuffix.Data()), ";p_{T}(Z) [GeV];Events after cut", zPtBins, 0., zPtMax);
+  TH1D *hEff_Y_ll_before = new TH1D(Form("eff_Y_ll_before%s", effSuffix.Data()), ";|y(Z)|;Events before cut", zYBins/2, 0., zYMax);
+  TH1D *hEff_Y_ll_after = new TH1D(Form("eff_Y_ll_after%s", effSuffix.Data()), ";|y(Z)|;Events after cut", zYBins/2, 0., zYMax);
+  TH2D *hEff_costhVsY_before = new TH2D(Form("eff_costhVsY_before%s", effSuffix.Data()), ";cos#theta_{CS};|y(Z)|;Events before cut", 50, -1., 1., zYBins/2, 0., zYMax);
+  TH2D *hEff_costhVsY_after = new TH2D(Form("eff_costhVsY_after%s", effSuffix.Data()), ";cos#theta_{CS};|y(Z)|;Events after cut", 50, -1., 1., zYBins/2, 0., zYMax);
 
   // Lepton-lepton angular separation:
   // close-by pairs -> small DeltaR and |DeltaPhi|; back-to-back -> |DeltaPhi| ~ pi and cos(opening) ~ -1.
@@ -622,72 +675,54 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
         }
     }
 
-    if ( ifTrueOnly && FiducialCut ) {
-      if (FiducialCutEtaonly) {
-        // Apply only eta cuts for fiducial selection in CC
-        if (fabs(em.Eta()) > 2.5 || fabs(ep.Eta()) > 2.5) {
-          // Skip events where leptons do not pass eta cuts
-          if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails eta-only fiducial cuts: eta_el = " << em.Eta()
-                << "; eta_pos = " << ep.Eta() << ". Skipping event." << endl;
-          continue;
-        }
-      } else if (FiducialCutCCCF)   {
-      // CF fiducial selection:
-      // both leptons must satisfy pT > 25 GeV and at least one lepton must be central (|eta| < 2.5).
-      // Boundary |eta| = 2.5 is treated as CF (forward).
-        if (em.Pt() < 25.0 || ep.Pt() < 25.0 || (fabs(em.Eta()) >= 2.5 && fabs(ep.Eta()) >= 2.5)) {
-          if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails CF fiducial cuts: pt_el = " << em.Pt()
-                << " GeV, eta_el = " << em.Eta() << "; pt_pos = " << ep.Pt()
-                << " GeV, eta_pos = " << ep.Eta() << ". Skipping event." << endl;
-          continue;
-        }
-      } else if (FiducialCutCFonly) {
-        // CF-only fiducial selection:
-        // both leptons must satisfy pT > 25 GeV and the pair must be one central
-        // lepton (|eta| < 2.5) plus one forward lepton (|eta| >= 2.5).
-        if (em.Pt() < 25.0 || ep.Pt() < 25.0 ||
-            !((fabs(em.Eta()) < 2.5 && fabs(ep.Eta()) >= 2.5) ||
-              (fabs(em.Eta()) >= 2.5 && fabs(ep.Eta()) < 2.5))) {
-          if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails CF-only fiducial cuts: pt_el = " << em.Pt()
-                << " GeV, eta_el = " << em.Eta() << "; pt_pos = " << ep.Pt()
-                << " GeV, eta_pos = " << ep.Eta() << ". Skipping event." << endl;
-          continue;
-        }
-      } else if (FiducialCutCCAsym) {
-        // Asymmetric CC fiducial selection:
-        // leading (higher pT) lepton: pT > 27 GeV
-        // subleading (lower pT) lepton: pT > 25 GeV
-        // both must satisfy |eta| <= 2.5
-        double pt_leading = std::max(em.Pt(), ep.Pt());
-        double pt_subleading = std::min(em.Pt(), ep.Pt());
-        double eta_leading = (em.Pt() > ep.Pt()) ? em.Eta() : ep.Eta();
-        double eta_subleading = (em.Pt() > ep.Pt()) ? ep.Eta() : em.Eta();
-        
-        if (pt_leading < 27.0 || pt_subleading < 25.0 || fabs(eta_leading) > 2.5 || fabs(eta_subleading) > 2.5) {
-          if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails asymmetric CC fiducial cuts: "
-                << "pt_leading = " << pt_leading << " GeV (need >= 27), pt_subleading = " << pt_subleading 
-                << " GeV (need >= 25), eta_leading = " << eta_leading << ", eta_subleading = " << eta_subleading << endl;
-          continue;
-        }
-      } else {
-         // Apply full fiducial cuts (CC) on both pT and eta
-        if (em.Pt() < 25.0 || fabs(em.Eta()) > 2.5 || ep.Pt() < 25.0 || fabs(ep.Eta()) > 2.5) {
-          // Skip events where leptons do not pass fiducial cuts
-         if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails fiducial cuts: pt_el = " << em.Pt() << " GeV, eta_el = " << em.Eta()
-               << "; pt_pos = " << ep.Pt() << " GeV, eta_pos = " << ep.Eta() << ". Skipping event." << endl;
-          continue;
-        }
-      }
-    }
+    // NOTE: Fiducial cut checks are moved AFTER Z mass window and efficiency histogram filling
+    // so we can capture before/after distributions correctly
 
     z = em + ep;
 
     if (z.M() < 66. || z.M() > 116.) {
-       // cout << " WARNING: Event " << i << " has dilepton mass outside Z window: m_ll = " << z.M() << " GeV. Skipping event." << endl;
-        // Skip events outside the Z mass window
-    continue;
+       // Skip events outside the Z mass window (doesn't fill efficiency before histograms)
+       continue;
     }
     ZMass->Fill(z.M(), mcEventWeight);
+
+    // Determine leading and subleading leptons for efficiency diagnostics
+    double pt_leading_diag = (em.Pt() > ep.Pt()) ? em.Pt() : ep.Pt();
+    double pt_subleading_diag = (em.Pt() > ep.Pt()) ? ep.Pt() : em.Pt();
+    double eta_leading_diag = (em.Pt() > ep.Pt()) ? em.Eta() : ep.Eta();
+    double eta_subleading_diag = (em.Pt() > ep.Pt()) ? ep.Eta() : em.Eta();
+
+    // Check fiducial cuts AFTER Z mass window to determine which histograms to fill
+    bool passesEtaOnlyCut = (fabs(em.Eta()) <= 2.5 && fabs(ep.Eta()) <= 2.5);
+    bool passesCCCut = (em.Pt() >= 25.0 && fabs(em.Eta()) <= 2.5 && ep.Pt() >= 25.0 && fabs(ep.Eta()) <= 2.5);
+    bool passesCCCFCut = (em.Pt() >= 25.0 && ep.Pt() >= 25.0 && 
+                          (fabs(em.Eta()) < 2.5 || fabs(ep.Eta()) < 2.5));
+    bool passesCFOnlyCut = (em.Pt() >= 25.0 && ep.Pt() >= 25.0 &&
+                            ((fabs(em.Eta()) < 2.5 && fabs(ep.Eta()) >= 2.5) ||
+                             (fabs(em.Eta()) >= 2.5 && fabs(ep.Eta()) < 2.5)));
+    bool passesAsymCut = (pt_leading_diag >= 27.0 && pt_subleading_diag >= 25.0 && 
+                          fabs(eta_leading_diag) <= 2.5 && fabs(eta_subleading_diag) <= 2.5);
+
+    // Skip event if running with FiducialCut enabled and cuts not passed
+    if (ifTrueOnly && FiducialCut) {
+      bool shouldKeepEvent = false;
+      
+      if (FiducialCutEtaonly) {
+        shouldKeepEvent = passesEtaOnlyCut;
+      } else if (FiducialCutCCCF) {
+        shouldKeepEvent = passesCCCFCut;
+      } else if (FiducialCutCFonly) {
+        shouldKeepEvent = passesCFOnlyCut;
+      } else if (FiducialCutCCAsym) {
+        shouldKeepEvent = passesAsymCut;
+      } else {
+        // Default: symmetric CC cut
+        shouldKeepEvent = passesCCCut;
+      }
+      
+      // NOTE: We still fill BEFORE histograms even if event doesn't pass cut
+      // AFTER histograms will only be filled if cut passes
+    }
 
     if (i%100000 == 0) {
       cout << "Processed " << i <<"/" << N << " events" << endl;
@@ -740,6 +775,67 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     hZYVsCostheta->Fill(fabs(z.Rapidity()), costheta, weight);
     hZYVsPhi->Fill(fabs(z.Rapidity()), phi, weight);
 
+    // Pairwise angular observables between the two leptons (needed for efficiency plots)
+    const double dEta_ll = fabs(em.Eta() - ep.Eta());
+    const double dPhi_ll = fabs(atan2(sin(em.Phi() - ep.Phi()), cos(em.Phi() - ep.Phi())));
+    const double dR_ll = sqrt(dEta_ll*dEta_ll + dPhi_ll*dPhi_ll);
+    const double cosOpening_ll = em.Vect().Unit().Dot(ep.Vect().Unit());
+
+    // Fill efficiency histograms: BEFORE (all events after mass window)
+    // Fill efficiency histograms: AFTER (only if event passes active fiducial cut)
+    hEff_costheta_before->Fill(costheta, weight);
+    hEff_leadingPt_before->Fill(pt_leading_diag, weight);
+    hEff_subleadingPt_before->Fill(pt_subleading_diag, weight);
+    hEff_leadPtVsSubleadPt_before->Fill(pt_leading_diag, pt_subleading_diag, weight);
+    hEff_deltaEta_before->Fill(dEta_ll, weight);
+    hEff_etaLeadVsSubleadAbs_before->Fill(fabs(eta_leading_diag), fabs(eta_subleading_diag), weight);
+    hEff_pT_Z_before->Fill(z.Pt(), weight);
+    hEff_Y_ll_before->Fill(fabs(z.Rapidity()), weight);
+    hEff_costhVsY_before->Fill(costheta, fabs(z.Rapidity()), weight);
+
+    // Fill AFTER histograms based on active fiducial cut type and whether event passes
+    // NOTE: When FiducialCut=false, all events pass (fillAfter=true) and no events are skipped.
+    //       All events within mll window are processed through the entire analysis.
+    bool fillAfter = false;
+    
+    if (FiducialCutCCAsym && ifTrueOnly && FiducialCut) {
+      fillAfter = passesAsymCut;
+    } else if (FiducialCutEtaonly && ifTrueOnly && FiducialCut) {
+      fillAfter = passesEtaOnlyCut;
+    } else if (FiducialCutCCCF && ifTrueOnly && FiducialCut) {
+      fillAfter = passesCCCFCut;
+    } else if (FiducialCutCFonly && ifTrueOnly && FiducialCut) {
+      fillAfter = passesCFOnlyCut;
+    } else if (FiducialCut && ifTrueOnly) {
+      // Default: symmetric CC cut
+      fillAfter = passesCCCut;
+    } else if (!FiducialCut) {
+      // No fiducial cut applied: all events after Z mass window are accepted
+      // fillAfter = true means AFTER histograms = BEFORE histograms (100% acceptance, 0% loss)
+      fillAfter = true;
+    }
+    
+    if (fillAfter) {
+      hEff_costheta_after->Fill(costheta, weight);
+      hEff_leadingPt_after->Fill(pt_leading_diag, weight);
+      hEff_subleadingPt_after->Fill(pt_subleading_diag, weight);
+      hEff_leadPtVsSubleadPt_after->Fill(pt_leading_diag, pt_subleading_diag, weight);
+      hEff_deltaEta_after->Fill(dEta_ll, weight);
+      hEff_etaLeadVsSubleadAbs_after->Fill(fabs(eta_leading_diag), fabs(eta_subleading_diag), weight);
+      hEff_pT_Z_after->Fill(z.Pt(), weight);
+      hEff_Y_ll_after->Fill(fabs(z.Rapidity()), weight);
+      hEff_costhVsY_after->Fill(costheta, fabs(z.Rapidity()), weight);
+    }
+
+    // Skip remaining analysis ONLY if:
+    // - Running truth-level (ifTrueOnly=true)
+    // - AND fiducial cuts are enabled (FiducialCut=true)
+    // - AND current event failed the active cut (!fillAfter)
+    // When FiducialCut=false, this condition is never true, so ALL events are processed.
+    if (ifTrueOnly && FiducialCut && !fillAfter) {
+      continue;
+    }
+
     // Determine leading and subleading leptons
     double pt_leading = (em.Pt() > ep.Pt()) ? em.Pt() : ep.Pt();
     double pt_subleading = (em.Pt() > ep.Pt()) ? ep.Pt() : em.Pt();
@@ -756,11 +852,8 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     hAcceptance_subleadingPt->Fill(pt_subleading, weight);
     hAcceptance_leading_vs_subleading->Fill(pt_leading, pt_subleading, weight);
 
-    // Pairwise angular observables between the two leptons.
-    const double dEta_ll = fabs(em.Eta() - ep.Eta());
-    const double dPhi_ll = fabs(atan2(sin(em.Phi() - ep.Phi()), cos(em.Phi() - ep.Phi())));
-    const double dR_ll = sqrt(dEta_ll*dEta_ll + dPhi_ll*dPhi_ll);
-    const double cosOpening_ll = em.Vect().Unit().Dot(ep.Vect().Unit());
+    // Note: dEta_ll, dPhi_ll, dR_ll, cosOpening_ll already calculated above for efficiency plots
+    // Reuse those variables instead of recalculating
 
     hDeltaR_ll->Fill(dR_ll, weight);
     hDeltaPhi_ll->Fill(dPhi_ll, weight);
@@ -1199,5 +1292,27 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   hCosOpeningVsLeadPt_ll->Write();
   hCosOpeningVsSubleadPt_ll->Write();
   hCosOpeningVsDeltaEta_ll->Write();
+
+  // Write efficiency diagnostic histograms for active fiducial cut mode
+  // Histograms are named based on active cut: _CC, _EtaOnly, or _CCAsym
+  hEff_costheta_before->Write();
+  hEff_costheta_after->Write();
+  hEff_leadingPt_before->Write();
+  hEff_leadingPt_after->Write();
+  hEff_subleadingPt_before->Write();
+  hEff_subleadingPt_after->Write();
+  hEff_leadPtVsSubleadPt_before->Write();
+  hEff_leadPtVsSubleadPt_after->Write();
+  hEff_deltaEta_before->Write();
+  hEff_deltaEta_after->Write();
+  hEff_etaLeadVsSubleadAbs_before->Write();
+  hEff_etaLeadVsSubleadAbs_after->Write();
+  hEff_pT_Z_before->Write();
+  hEff_pT_Z_after->Write();
+  hEff_Y_ll_before->Write();
+  hEff_Y_ll_after->Write();
+  hEff_costhVsY_before->Write();
+  hEff_costhVsY_after->Write();
+
   Output->Close();
 }

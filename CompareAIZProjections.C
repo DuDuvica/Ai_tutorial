@@ -689,12 +689,13 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
 
   // 10) Boson-variable sliced projections.
   // isY = false: pT(Z) bins [GeV] = [0,5,10,15,35,55,80,2000]
-  // isY = true : |y(Z)| bins      = [0,0.4,0.8,1.6,2.4,3.2,4,8]
+  // isY = true : |y(Z)| bins      = [0,0.4,0.8,1.2,1.6,2.0,2.4,2.8,3.2,3.6,4.0,8.0] (11 bins)
   const int nBosonSlices = 7;
+  const int nBosonSlicesY = 11;
   const double bosonLow[nBosonSlices]  = {0., 5., 10., 15., 35., 55., 80.};
   const double bosonHigh[nBosonSlices] = {5., 10., 15., 35., 55., 80., 2000.};
-  const double yLow[nBosonSlices]      = {0.0, 0.4, 0.8, 1.6, 2.4, 3.2, 4.0};
-  const double yHigh[nBosonSlices]     = {0.4, 0.8, 1.6, 2.4, 3.2, 4.0, 8.0};
+  const double yLow[nBosonSlicesY]      = {0.0, 0.4, 0.8, 1.2 , 1.6, 2.0 , 2.4, 2.8, 3.2, 3.6 ,4.0 };
+  const double yHigh[nBosonSlicesY]     = {0.4, 0.8, 1.2, 1.6, 2.0, 2.4, 2.8, 3.2, 3.6, 4.0, 8.0};
 
   const char* bosonLabel = isY ? "|y(Z)|" : "p_{T}(Z)";
   const char* bosonUnit = isY ? "" : " GeV";
@@ -713,40 +714,41 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     isY ? "cos#theta_{CS} in |y(Z)| slices" : "cos#theta_{CS} in p_{T}(Z) slices",
     1600, 900
   );
-  cBosonCosthSlices->Divide(4, 2);
+  cBosonCosthSlices->Divide(4, 3);
 
   TCanvas* cBosonPhiSlices = new TCanvas(
     isY ? "c_projection_phi_in_zY_slices" : "c_projection_phi_in_zpt_slices",
     isY ? "#phi_{CS} in |y(Z)| slices" : "#phi_{CS} in p_{T}(Z) slices",
     1600, 900
   );
-  cBosonPhiSlices->Divide(4, 2);
+  cBosonPhiSlices->Divide(4, 3);
 
   TCanvas* cBosonObsMSlices = new TCanvas(
     isY ? "c_projection_pt_m_in_zY_slices" : "c_projection_eta_m_in_zpt_slices",
     isY ? "p_{T}(e^{-}) in |y(Z)| slices" : "#eta(e^{-}) in p_{T}(Z) slices",
     1600, 900
   );
-  cBosonObsMSlices->Divide(4, 2);
+  cBosonObsMSlices->Divide(4, 3);
 
   TCanvas* cBosonObsPSlices = new TCanvas(
     isY ? "c_projection_pt_p_in_zY_slices" : "c_projection_eta_p_in_zpt_slices",
     isY ? "p_{T}(e^{+}) in |y(Z)| slices" : "#eta(e^{+}) in p_{T}(Z) slices",
     1600, 900
   );
-  cBosonObsPSlices->Divide(4, 2);
+  cBosonObsPSlices->Divide(4, 3);
 
   TCanvas* cDEtaInBosonSlices = new TCanvas(
     isY ? "c_projection_deltaeta_in_zY_slices" : "c_projection_deltaeta_in_zpt_slices",
     isY ? "|#Delta#eta| in |y(Z)| slices" : "|#Delta#eta| in p_{T}(Z) slices",
     1600, 900
   );
-  cDEtaInBosonSlices->Divide(4, 2);
+  cDEtaInBosonSlices->Divide(4, 3);
 
-  TH1D* pDEtaBosonSlices[nBosonSlices] = {nullptr};
-  const int sliceColors[nBosonSlices] = {kRed + 1, kBlue + 1, kGreen + 2, kMagenta + 1, kOrange + 7, kAzure + 2, kBlack};
+  TH1D* pDEtaBosonSlices[nBosonSlicesY] = {nullptr};
+  const int sliceColors[] = {kRed + 1, kBlue + 1, kGreen + 2, kMagenta + 1, kOrange + 7, kAzure + 2, kBlack, kViolet - 5, kCyan + 2, kSpring + 5, kTeal + 2};
+  const int nSlices = isY ? nBosonSlicesY : nBosonSlices;
 
-  for (int i = 0; i < nBosonSlices; ++i) {
+  for (int i = 0; i < nSlices; ++i) {
     const double bosonLo = isY ? yLow[i] : bosonLow[i];
     const double bosonHi = isY ? yHigh[i] : bosonHigh[i];
 
@@ -829,7 +831,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   padDEtaOverlayBot->Draw();
 
   double maxDeltaEtaOverlay = 0.0;
-  for (int i = 0; i < nBosonSlices; ++i) {
+  for (int i = 0; i < nSlices; ++i) {
     if (!pDEtaBosonSlices[i]) continue;
     maxDeltaEtaOverlay = std::max(maxDeltaEtaOverlay, pDEtaBosonSlices[i]->GetMaximum());
   }
@@ -843,7 +845,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   legDEtaBosonOverlay->SetFillStyle(0);
 
   padDEtaOverlayTop->cd();
-  for (int i = 0; i < nBosonSlices; ++i) {
+  for (int i = 0; i < nSlices; ++i) {
     if (!pDEtaBosonSlices[i]) continue;
     if (i == 0) {
       pDEtaBosonSlices[i]->SetTitle(Form("Overlay: |#Delta#eta| slices in %s;%s;Normalized entries", bosonLabel, "|#Delta#eta(l_{1},l_{2})|"));
@@ -862,7 +864,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   padDEtaOverlayBot->cd();
   TH1D* pDEtaRef = pDEtaBosonSlices[0];
   TH1D* pFirstRatio = nullptr;
-  for (int i = 1; i < nBosonSlices; ++i) {
+  for (int i = 1; i < nSlices; ++i) {
     if (!pDEtaBosonSlices[i] || !pDEtaRef) continue;
     TH1D* pRatio = static_cast<TH1D*>(pDEtaBosonSlices[i]->Clone(Form("ratio_deltaeta_boson_slice_%d", i)));
     pRatio->Divide(pDEtaRef);
@@ -915,9 +917,9 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
         "p_{T}(leading) vs p_{T}(subleading) in |y(Z)| slices",
         1600, 900
       );
-      cPtLeadSubleadInYSlices->Divide(4, 2);
+      cPtLeadSubleadInYSlices->Divide(4, 3);
 
-      for (int i = 0; i < nBosonSlices; ++i) {
+      for (int i = 0; i < nBosonSlicesY; ++i) {
         const double yLo = yLow[i];
         const double yHi = yHigh[i];
 
@@ -974,9 +976,9 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
         "#eta(leading) vs #eta(subleading) in |y(Z)| slices",
         1600, 900
       );
-      cEtaLeadSubleadInYSlices->Divide(4, 2);
+      cEtaLeadSubleadInYSlices->Divide(4, 3);
 
-      for (int i = 0; i < nBosonSlices; ++i) {
+      for (int i = 0; i < nBosonSlicesY; ++i) {
         const double yLo = yLow[i];
         const double yHi = yHigh[i];
 
@@ -1016,16 +1018,16 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
 
   // 12) Forward vs Central overlays in boson (pT(Z) or |y(Z)|) slices.
   if (hZptVsPtFwd && hZptVsPtCen) {
-    TH1D* pPtFwdBosonSlices[nBosonSlices] = {nullptr};
+    TH1D* pPtFwdBosonSlices[nBosonSlicesY] = {nullptr};
 
     cPtFwdCenInBosonSlices = new TCanvas(
       isY ? "c_overlay_pT_forward_in_yZ_slices" : "c_overlay_pT_forward_in_pTZ_slices",
       isY ? "p_{T}(forward) vs p_{T}(central) in |y(Z)| slices" : "p_{T}(forward) vs p_{T}(central) in p_{T}(Z) slices",
       1600, 900
     );
-    cPtFwdCenInBosonSlices->Divide(4, 2);
+    cPtFwdCenInBosonSlices->Divide(4, 3);
 
-    for (int i = 0; i < nBosonSlices; ++i) {
+    for (int i = 0; i < (isY ? nBosonSlicesY : nBosonSlices); ++i) {
       const double bosonLo = isY ? yLow[i] : bosonLow[i];
       const double bosonHi = isY ? yHigh[i] : bosonHigh[i];
 
@@ -1050,6 +1052,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
 
       cPtFwdCenInBosonSlices->cd(i + 1);
       pPtFwdInBoson->SetTitle(Form("%.1f < %s < %.1f%s;p_{T} [GeV];Normalized entries", bosonLo, bosonLabel, bosonHi, bosonUnit));
+      pPtFwdInBoson->GetXaxis()->SetRangeUser(0., 100.);
       pPtFwdInBoson->Draw("hist");
       pPtCenInBoson->Draw("hist same");
 
@@ -1094,7 +1097,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     padPtFwdOverlayBot->Draw();
 
     double maxPtFwdOverlay = 0.0;
-    for (int i = 0; i < nBosonSlices; ++i) {
+    for (int i = 0; i < (isY ? nBosonSlicesY : nBosonSlices); ++i) {
       if (pPtFwdBosonSlices[i]) maxPtFwdOverlay = std::max(maxPtFwdOverlay, pPtFwdBosonSlices[i]->GetMaximum());
     }
 
@@ -1103,11 +1106,12 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     legPtFwdBosonOverlay->SetFillStyle(0);
 
     padPtFwdOverlayTop->cd();
-    for (int i = 0; i < nBosonSlices; ++i) {
+    for (int i = 0; i < (isY ? nBosonSlicesY : nBosonSlices); ++i) {
       if (!pPtFwdBosonSlices[i]) continue;
       if (i == 0) {
         pPtFwdBosonSlices[i]->SetTitle(Form("Overlay: p_{T}(forward) slices in %s;p_{T} [GeV];Normalized entries", bosonLabel));
         if (maxPtFwdOverlay > 0.0) pPtFwdBosonSlices[i]->SetMaximum(1.25 * maxPtFwdOverlay);
+        pPtFwdBosonSlices[i]->GetXaxis()->SetRangeUser(0., 100.);
         pPtFwdBosonSlices[i]->Draw("hist");
       } else {
         pPtFwdBosonSlices[i]->Draw("hist same");
@@ -1121,7 +1125,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     padPtFwdOverlayBot->cd();
     TH1D* pPtFwdRef = pPtFwdBosonSlices[0];
     TH1D* pFirstPtFwdRatio = nullptr;
-    for (int i = 1; i < nBosonSlices; ++i) {
+    for (int i = 1; i < (isY ? nBosonSlicesY : nBosonSlices); ++i) {
       if (!pPtFwdBosonSlices[i] || !pPtFwdRef) continue;
       TH1D* pRatio = static_cast<TH1D*>(pPtFwdBosonSlices[i]->Clone(Form("ratio_pt_fwd_boson_slice_%d", i)));
       pRatio->Divide(pPtFwdRef);
@@ -1158,16 +1162,16 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
   }
 
   if (hZptVsEtaFwd && hZptVsEtaCen) {
-    TH1D* pEtaFwdBosonSlices[nBosonSlices] = {nullptr};
+    TH1D* pEtaFwdBosonSlices[nBosonSlicesY] = {nullptr};
 
     cEtaFwdCenInBosonSlices = new TCanvas(
       isY ? "c_overlay_eta_forward_in_yZ_slices" : "c_overlay_eta_forward_in_pTZ_slices",
       isY ? "|#eta|(forward) vs |#eta|(central) in |y(Z)| slices" : "|#eta|(forward) vs |#eta|(central) in p_{T}(Z) slices",
       1600, 900
     );
-    cEtaFwdCenInBosonSlices->Divide(4, 2);
+    cEtaFwdCenInBosonSlices->Divide(4, 3);
 
-    for (int i = 0; i < nBosonSlices; ++i) {
+    for (int i = 0; i < (isY ? nBosonSlicesY : nBosonSlices); ++i) {
       const double bosonLo = isY ? yLow[i] : bosonLow[i];
       const double bosonHi = isY ? yHigh[i] : bosonHigh[i];
 
@@ -1224,7 +1228,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     padEtaFwdOverlayBot->Draw();
 
     double maxEtaFwdOverlay = 0.0;
-    for (int i = 0; i < nBosonSlices; ++i) {
+    for (int i = 0; i < (isY ? nBosonSlicesY : nBosonSlices); ++i) {
       if (!pEtaFwdBosonSlices[i]) continue;
       maxEtaFwdOverlay = std::max(maxEtaFwdOverlay, pEtaFwdBosonSlices[i]->GetMaximum());
     }
@@ -1238,7 +1242,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     legEtaFwdBosonOverlay->SetFillStyle(0);
 
     padEtaFwdOverlayTop->cd();
-    for (int i = 0; i < nBosonSlices; ++i) {
+    for (int i = 0; i < (isY ? nBosonSlicesY : nBosonSlices); ++i) {
       if (!pEtaFwdBosonSlices[i]) continue;
       if (i == 0) {
         pEtaFwdBosonSlices[i]->SetTitle(Form("Overlay: |#eta|(forward) slices in %s;|#eta|;Normalized entries", bosonLabel));
@@ -1257,7 +1261,7 @@ void CompareAIZProjections(const TString& inFile = "AI_Z_Truth_Zai_finalbinningP
     padEtaFwdOverlayBot->cd();
     TH1D* pEtaFwdRef = pEtaFwdBosonSlices[0];
     TH1D* pFirstEtaFwdRatio = nullptr;
-    for (int i = 1; i < nBosonSlices; ++i) {
+    for (int i = 1; i < (isY ? nBosonSlicesY : nBosonSlices); ++i) {
       if (!pEtaFwdBosonSlices[i] || !pEtaFwdRef) continue;
       TH1D* pRatio = static_cast<TH1D*>(pEtaFwdBosonSlices[i]->Clone(Form("ratio_eta_fwd_boson_slice_%d", i)));
       pRatio->Divide(pEtaFwdRef);

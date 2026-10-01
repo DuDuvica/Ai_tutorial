@@ -21,15 +21,15 @@ using namespace std;
 
 bool sherpa = false;
 bool test = false; // set to true for quick test with limited events; set to false for full run
-bool override = false; // set to true to overwrite existing output file without prompt
+bool override = true; // set to true to overwrite existing output file without prompt
 bool normXS = true;
 bool ifTrueOnly = true;
-bool FiducialCut = false; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutEtaonly = false ;
-bool FiducialCutCCCF = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCutCCCF = true ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCFonly = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 int polynomialIndex = 6; // basis polynomial used by the configurable polynomial diagnostics, 0 through 7
-bool appendPolynomialOutputs = true; // keep P0-P7 diagnostic objects in the same ROOT file across runs
+bool appendPolynomialOutputs = false; // keep P0-P7 diagnostic objects in the same ROOT file across runs
 
 // Weighted means with numerator/denominator covariance, including signed MC
 // weights. Keep sums so bins with a cancelling denominator are identifiable.
@@ -363,7 +363,7 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   Double_t bins[]= {0,2.5,5.0,8.0,11.4,14.9,18.5,22.0,25.5,29.0,32.6,36.4,40.4,44.9,50.2,56.4,63.9,73.4,85.4,105.0,132.0,173.0,253.0,600.0};
 
   if (isY) {
-    double width = 0.4;
+    double width = 0.2;
     for (int k =0 ; k<Nbins ;k++) {
       bins[k] = (width)*k;
       cout << " Y  bins at:  " << k << " bin " << bins[k] << endl;

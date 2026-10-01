@@ -14,7 +14,7 @@ The polynomial diagnostics default to `polynomialIndex = 6`. Set it to any value
 0 to 7 either before calling `AIZ`, or pass it directly as the second argument:
 
 ```bash
-root -l -q -e '.L TLVUtils.cxx' -e '.L AIZ.C' -e 'override=true;' -e 'test=true;' -e 'AIZ(true, 2);'
+root -l -q -e '.L TLVUtils.cxx' -e '.L AIZ.C' -e 'override=true;' -e 'test=true;' -e 'AIZ(true, 1);'
 ```
 
 This writes `P2_polynomial.pdf`, `P2_observables.pdf`, and `P2_sensitivity.pdf`

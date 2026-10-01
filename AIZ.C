@@ -28,6 +28,7 @@ bool FiducialCut = false; // set to true to apply fiducial cuts at truth level, 
 bool FiducialCutEtaonly = false ;
 bool FiducialCutCCCF = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCFonly = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
+bool FiducialCutCCAsym = false ; // asymmetric CC pT thresholds: 27 GeV leading, 25 GeV subleading
 int polynomialIndex = 6; // basis polynomial used by the configurable polynomial diagnostics, 0 through 7
 bool appendPolynomialOutputs = true; // keep P0-P7 diagnostic objects in the same ROOT file across runs
 
@@ -195,13 +196,14 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   cout << " FiducialCutEtaonly: " << FiducialCutEtaonly << endl;
   cout << " FiducialCutCCCF: " << FiducialCutCCCF << endl;
   cout << " FiducialCutCFonly: " << FiducialCutCFonly << endl;
+  cout << " FiducialCutCCAsym: " << FiducialCutCCAsym << endl;
   cout << " polynomialIndex: " << polynomialIndex << endl;
   if (polynomialIndex < 0 || polynomialIndex > 7) {
     cout << " ERROR: polynomialIndex must be between 0 and 7" << endl;
     return;
   }
-  if ( (FiducialCutEtaonly || FiducialCutCCCF || FiducialCutCFonly) && !FiducialCut) {
-    cout << " ERROR: FiducialCutEtaonly or FiducialCutCCCF or FiducialCutCFonly cannot be true if FiducialCut is false. Please set FiducialCut to true to apply eta-only fiducial cuts." << endl;
+  if ( (FiducialCutEtaonly || FiducialCutCCCF || FiducialCutCFonly || FiducialCutCCAsym) && !FiducialCut) {
+    cout << " ERROR: FiducialCutEtaonly, FiducialCutCCCF, FiducialCutCFonly, or FiducialCutCCAsym cannot be true if FiducialCut is false. Please set FiducialCut to true to apply fiducial cuts." << endl;
     return;
   }
 
@@ -451,6 +453,11 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   TH2D *hCosthVsPt_leading = new TH2D("costh_vs_pt_leading", ";p_{T}(lead) [GeV];cos#theta_{CS}", pt2dBins, 0., pt2dMax, 50, -1., 1.);
   TH2D *hCosthVsPt_subleading = new TH2D("costh_vs_pt_subleading", ";p_{T}(sublead) [GeV];cos#theta_{CS}", pt2dBins, 0., pt2dMax, 50, -1., 1.);
 
+  // Acceptance tracking histograms for asymmetric threshold studies
+  TH1D *hAcceptance_leadingPt = new TH1D("acceptance_leadingPt", ";p_{T}(leading l) [GeV];Events", pt2dBins, 0., pt2dMax);
+  TH1D *hAcceptance_subleadingPt = new TH1D("acceptance_subleadingPt", ";p_{T}(subleading l) [GeV];Events", pt2dBins, 0., pt2dMax);
+  TH2D *hAcceptance_leading_vs_subleading = new TH2D("acceptance_leadingPt_vs_subleadingPt", ";p_{T}(leading l) [GeV];p_{T}(subleading l) [GeV]", pt2dBins, 0., pt2dMax, pt2dBins, 0., pt2dMax);
+
   // Lepton-lepton angular separation:
   // close-by pairs -> small DeltaR and |DeltaPhi|; back-to-back -> |DeltaPhi| ~ pi and cos(opening) ~ -1.
   // DeltaEta can be large for forward leptons, but should be symmetric around 0 for Z->ll.
@@ -646,8 +653,23 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
                 << " GeV, eta_pos = " << ep.Eta() << ". Skipping event." << endl;
           continue;
         }
-      }
-       else {
+      } else if (FiducialCutCCAsym) {
+        // Asymmetric CC fiducial selection:
+        // leading (higher pT) lepton: pT > 27 GeV
+        // subleading (lower pT) lepton: pT > 25 GeV
+        // both must satisfy |eta| <= 2.5
+        double pt_leading = std::max(em.Pt(), ep.Pt());
+        double pt_subleading = std::min(em.Pt(), ep.Pt());
+        double eta_leading = (em.Pt() > ep.Pt()) ? em.Eta() : ep.Eta();
+        double eta_subleading = (em.Pt() > ep.Pt()) ? ep.Eta() : em.Eta();
+        
+        if (pt_leading < 27.0 || pt_subleading < 25.0 || fabs(eta_leading) > 2.5 || fabs(eta_subleading) > 2.5) {
+          if ( i%10000 == 0 )  cout << " WARNING: Event " << i << " fails asymmetric CC fiducial cuts: "
+                << "pt_leading = " << pt_leading << " GeV (need >= 27), pt_subleading = " << pt_subleading 
+                << " GeV (need >= 25), eta_leading = " << eta_leading << ", eta_subleading = " << eta_subleading << endl;
+          continue;
+        }
+      } else {
          // Apply full fiducial cuts (CC) on both pT and eta
         if (em.Pt() < 25.0 || fabs(em.Eta()) > 2.5 || ep.Pt() < 25.0 || fabs(ep.Eta()) > 2.5) {
           // Skip events where leptons do not pass fiducial cuts
@@ -728,6 +750,11 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     hEtaVsPt_subleading->Fill(pt_subleading, eta_subleading, weight);
     hCosthVsPt_leading->Fill(pt_leading, costheta, weight);
     hCosthVsPt_subleading->Fill(pt_subleading, costheta, weight);
+
+    // Fill acceptance tracking histograms
+    hAcceptance_leadingPt->Fill(pt_leading, weight);
+    hAcceptance_subleadingPt->Fill(pt_subleading, weight);
+    hAcceptance_leading_vs_subleading->Fill(pt_leading, pt_subleading, weight);
 
     // Pairwise angular observables between the two leptons.
     const double dEta_ll = fabs(em.Eta() - ep.Eta());
@@ -1155,6 +1182,9 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   hEtaVsPt_subleading->Write();
   hCosthVsPt_leading->Write();
   hCosthVsPt_subleading->Write();
+  hAcceptance_leadingPt->Write();
+  hAcceptance_subleadingPt->Write();
+  hAcceptance_leading_vs_subleading->Write();
   hDeltaR_ll->Write();
   hDeltaPhi_ll->Write();
   hDeltaEta_ll->Write();

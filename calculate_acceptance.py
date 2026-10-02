@@ -344,6 +344,147 @@ def create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2
         import traceback
         traceback.print_exc()
 
+def create_sensitivity_loss_comparison_plots(root_file1, root_file2):
+    """Compare the A4 SensitivityLossFactor between two files.
+
+    A4_SensitivityLossFactor (and its underlying A4_sumW_*/A4_P4sqNum_* inputs)
+    are written by AIZ.C without an effSuffix, since they quantify how much the
+    active fiducial cut in *that* file inflates the statistical uncertainty on
+    A4 relative to the uncut sample within the same file. This function does
+    not repeat that before/after calculation; it compares the already-computed
+    per-file SensitivityLossFactor histograms against each other, file-to-file.
+
+    Args:
+        root_file1 (str): Path to first ROOT file
+        root_file2 (str): Path to second ROOT file
+    """
+    try:
+        f1 = ROOT.TFile.Open(root_file1, "READ")
+        f2 = ROOT.TFile.Open(root_file2, "READ")
+        
+        if not f1 or f1.IsZombie() or not f2 or f2.IsZombie():
+            print(f"ERROR: Unable to open one or both files")
+            return
+        
+        h1 = f1.Get("A4_SensitivityLossFactor")
+        h2 = f2.Get("A4_SensitivityLossFactor")
+        
+        if not h1 or not h2:
+            print(f"WARNING: A4_SensitivityLossFactor not found in one or both files; "
+                  f"skipping sensitivity-loss comparison "
+                  f"(re-run AIZ.C to produce it if missing)")
+            f1.Close()
+            f2.Close()
+            return
+        
+        print("\n" + "="*70)
+        print("A4 SENSITIVITY LOSS FACTOR COMPARISON")
+        print("="*70)
+        
+        canvas = ROOT.TCanvas("c_A4_sensitivity_loss_comparison",
+                               "A4 Sensitivity Loss Factor: File Comparison", 1600, 700)
+        canvas.Divide(2, 1)
+        
+        h1_clone = h1.Clone("A4_SensitivityLossFactor_file1")
+        h2_clone = h2.Clone("A4_SensitivityLossFactor_file2")
+        
+        # Left pad: overlay of both files' loss factors
+        canvas.cd(1)
+        ROOT.gPad.SetGrid(1, 1)
+        
+        setup_histogram_style(h1_clone, ROOT.kBlue + 1, 20)
+        setup_histogram_style(h2_clone, ROOT.kRed + 1, 22)
+        
+        h1_clone.SetTitle("A_{4} Sensitivity Loss Factor - Overlay")
+        h1_clone.GetYaxis().SetTitle("#sigma(A_{4})_{after}/#sigma(A_{4})_{before}")
+        h1_clone.Draw("PE")
+        h2_clone.Draw("PE SAME")
+        
+        legend = ROOT.TLegend(0.55, 0.75, 0.95, 0.95)
+        legend.AddEntry(h1_clone, "File 1", "PE")
+        legend.AddEntry(h2_clone, "File 2", "PE")
+        legend.Draw()
+        
+        line_unity = ROOT.TLine(h1_clone.GetXaxis().GetXmin(), 1.0,
+                                 h1_clone.GetXaxis().GetXmax(), 1.0)
+        line_unity.SetLineStyle(2)
+        line_unity.SetLineColor(ROOT.kBlack)
+        line_unity.Draw()
+        
+        # Right pad: difference of the two files' loss factors (File1 - File2)
+        canvas.cd(2)
+        ROOT.gPad.SetGrid(1, 1)
+        
+        h_difference = h1.Clone("A4_SensitivityLossFactor_difference")
+        h_difference.Add(h2, -1.0)
+        setup_histogram_style(h_difference, ROOT.kGreen + 2, 20)
+        h_difference.SetTitle("Difference (File1 - File2) - A_{4} Sensitivity Loss Factor")
+        h_difference.GetYaxis().SetTitle("Sensitivity Loss Factor Difference (File1 - File2)")
+        populated_differences = [
+            h_difference.GetBinContent(b)
+            for b in range(1, h_difference.GetNbinsX() + 1)
+            if h1.GetBinContent(b) != 0 or h2.GetBinContent(b) != 0
+        ]
+        if populated_differences:
+            y_min = min(0.0, min(populated_differences))
+            y_max = max(0.0, max(populated_differences))
+            padding = (y_max - y_min) * 0.1
+            if padding == 0:
+                padding = 0.1
+            h_difference.SetMinimum(y_min - padding)
+            h_difference.SetMaximum(y_max + padding)
+        h_difference.Draw("P")
+        
+        line_difference_zero = ROOT.TLine(h_difference.GetXaxis().GetXmin(), 0.0,
+                                          h_difference.GetXaxis().GetXmax(), 0.0)
+        line_difference_zero.SetLineStyle(2)
+        line_difference_zero.SetLineColor(ROOT.kBlack)
+        line_difference_zero.Draw()
+        
+        canvas.SaveAs("acceptance_A4_sensitivity_loss_comparison.pdf")
+        print(f"\nSaved A4 sensitivity-loss comparison to: "
+              f"acceptance_A4_sensitivity_loss_comparison.pdf")
+        
+        # Per-bin printout
+        print(f"\n{'BinLow':>10} {'BinHigh':>10} {'LossFactor1':>14} {'LossFactor2':>14} {'Difference(1-2)':>16}")
+        for b in range(1, h1.GetNbinsX() + 1):
+            lo = h1.GetXaxis().GetBinLowEdge(b)
+            hi = h1.GetXaxis().GetBinUpEdge(b)
+            val1 = h1.GetBinContent(b)
+            val2 = h2.GetBinContent(b)
+            difference = val1 - val2
+            print(f"{lo:10.2f} {hi:10.2f} {val1:14.4f} {val2:14.4f} {difference:16.4f}")
+        
+        # Inclusive headline number: unweighted arithmetic mean of valid
+        # (nonzero) bin LossFactor values. Note: TH1::GetMean() would instead
+        # return the x-axis-weighted mean, which is not what we want here.
+        def mean_of_valid_bins(hist):
+            values = [hist.GetBinContent(b) for b in range(1, hist.GetNbinsX() + 1)
+                      if hist.GetBinContent(b) != 0]
+            return (sum(values) / len(values)) if values else float("nan")
+        
+        mean1 = mean_of_valid_bins(h1)
+        mean2 = mean_of_valid_bins(h2)
+        common_valid_differences = [
+            h1.GetBinContent(b) - h2.GetBinContent(b)
+            for b in range(1, h1.GetNbinsX() + 1)
+            if h1.GetBinContent(b) != 0 and h2.GetBinContent(b) != 0
+        ]
+        mean_difference = (
+            sum(common_valid_differences) / len(common_valid_differences)
+            if common_valid_differences else float("nan")
+        )
+        print(f"\nMean LossFactor (bin-averaged): File 1 = {mean1:.4f}, File 2 = {mean2:.4f}")
+        print(f"Mean Difference (File1 - File2, common valid bins): {mean_difference:.4f}")
+        
+        f1.Close()
+        f2.Close()
+        
+    except Exception as e:
+        print(f"ERROR in create_sensitivity_loss_comparison_plots: {e}")
+        import traceback
+        traceback.print_exc()
+
 def compare_two_files(root_file1, root_file2):
     """
     Compare acceptance between two ROOT files.
@@ -409,11 +550,18 @@ def compare_two_files(root_file1, root_file2):
                 eff1 = above_27_1 / above_25_1
                 eff2 = above_27_2 / above_25_2
                 
-                print(f"\nAcceptance Comparison:")
+                print(f"\nWithin-File Acceptance (p_T ≥ 27 GeV relative to p_T ≥ 25 GeV, same file):")
                 print(f"  File 1 acceptance: {eff1:.6f}")
                 print(f"  File 2 acceptance: {eff2:.6f}")
-                print(f"  Ratio (File1/File2): {eff1/eff2:.6f}")
+                print(f"  Ratio of within-file acceptances (File1/File2): {eff1/eff2:.6f}")
                 print(f"  Relative difference: {((eff1-eff2)/eff2)*100:.2f}%")
+            
+            if total1 > 0 and total2 > 0:
+                print(f"\nCross-File Total Event Comparison (p_T(lead) ≥ 25 GeV):")
+                print(f"  File 1 total events: {above_25_1:.2f}")
+                print(f"  File 2 total events: {above_25_2:.2f}")
+                print(f"  Ratio (File1/File2): {above_25_1/above_25_2:.6f}")
+                print(f"  Relative difference: {((above_25_1-above_25_2)/above_25_2)*100:.2f}%")
         
         # Get cos(theta) histograms
         h_costh1_after = f1.Get(f"eff_costheta_after{eff_suffix1}")
@@ -427,9 +575,12 @@ def compare_two_files(root_file1, root_file2):
             total_costh1 = h_costh1_after.Integral()
             total_costh2 = h_costh2_after.Integral()
             
-            print(f"\nFile 1 cos(theta) events: {total_costh1:.2f}")
-            print(f"File 2 cos(theta) events: {total_costh2:.2f}")
-            print(f"Ratio: {total_costh1/total_costh2:.6f}")
+            print(f"\nCross-File Total Event Comparison (after cut):")
+            print(f"  File 1 total events: {total_costh1:.2f}")
+            print(f"  File 2 total events: {total_costh2:.2f}")
+            print(f"  Ratio (File1/File2): {total_costh1/total_costh2:.6f}")
+            if total_costh2 > 0:
+                print(f"  Relative difference: {((total_costh1-total_costh2)/total_costh2)*100:.2f}%")
         
         f1.Close()
         f2.Close()
@@ -437,12 +588,14 @@ def compare_two_files(root_file1, root_file2):
         # Create visualization plots
         create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suffix2)
         create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2)
+        create_sensitivity_loss_comparison_plots(root_file1, root_file2)
         
         print("\n" + "="*70)
         print("TWO-FILE COMPARISON COMPLETE")
         print("Generated output files:")
         print("  - acceptance_overlay_comparison.pdf")
         print("  - acceptance_ratio_analysis.pdf")
+        print("  - acceptance_A4_sensitivity_loss_comparison.pdf (if A4_SensitivityLossFactor present)")
         print("="*70 + "\n")
         
     except Exception as e:

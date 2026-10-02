@@ -6,6 +6,7 @@
 #include "TCanvas.h"
 #include "TLegend.h"
 #include "TPad.h"
+#include "TLine.h"
 #include <iostream>
 #include "TLorentzVector.h"
 #include "TVector2.h"
@@ -416,6 +417,20 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   TH1D *Xsw = new TH1D("Xsweighted", "Xsweighted", Nbins-1, bins);
   TH1D *ZMass = new TH1D("ZMass", "ZMass", 100, 50., 150.);
 
+  // --- A4 sensitivity-loss diagnostics (fiducial cut impact on A4 precision only) ---
+  // Same binning as A4. Track sum of weights (for the effective statistics N_eff)
+  // and sum of w*P4^2 (for the lever arm <P4^2>) separately before and after the
+  // active fiducial cut, so we can estimate how much the cut inflates (or not)
+  // the statistical uncertainty on the A4 moment, independent of plain acceptance loss.
+  TH1D *A4_sumW_before = new TH1D("A4_sumW_before", ";Bin coordinate;#Sigma w (before cut)", Nbins-1, bins);
+  TH1D *A4_sumW_after  = new TH1D("A4_sumW_after",  ";Bin coordinate;#Sigma w (after cut)",  Nbins-1, bins);
+  TH1D *A4_P4sqNum_before = new TH1D("A4_P4sqNum_before", ";Bin coordinate;#Sigma w P_{4}^{2} (before cut)", Nbins-1, bins);
+  TH1D *A4_P4sqNum_after  = new TH1D("A4_P4sqNum_after",  ";Bin coordinate;#Sigma w P_{4}^{2} (after cut)",  Nbins-1, bins);
+  A4_sumW_before->Sumw2();
+  A4_sumW_after->Sumw2();
+  double a4_sumW_before_incl = 0., a4_sumW2_before_incl = 0., a4_sumWP4sq_before_incl = 0.;
+  double a4_sumW_after_incl  = 0., a4_sumW2_after_incl  = 0., a4_sumWP4sq_after_incl  = 0.;
+
   // Additional truth-level angular distributions vs lepton pT
   const int pt2dBins = 40;
   const double pt2dMax = 200.; // GeV
@@ -763,6 +778,17 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     if (normXS) weight = mcEventWeight; //weight *= norm;
     const double phiCSTruthWrapped = TVector2::Phi_0_2pi(phiCSTruth);
 
+    // A4 value computed here (ahead of the A0-A7 block below) so it can feed
+    // both the standard A4 histogram and the A4-only sensitivity-loss
+    // diagnostics, which need the "before cut" universe captured now.
+    const double a4Scaled = 4. * aipols[4];
+    const double a4Coordinate = isY ? fabs(z.Rapidity()) : z.Pt();
+    A4_sumW_before->Fill(a4Coordinate, weight);
+    A4_P4sqNum_before->Fill(a4Coordinate, weight * a4Scaled * a4Scaled);
+    a4_sumW_before_incl += weight;
+    a4_sumW2_before_incl += weight * weight;
+    a4_sumWP4sq_before_incl += weight * a4Scaled * a4Scaled;
+
     Zmass->Fill(z.M(), weight);
     hPolynomialSelectedAngles->Fill(costheta, phi, aipols[polynomialIndex] * weight);
     hctheta->Fill(costheta, weight);
@@ -825,6 +851,13 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
       hEff_pT_Z_after->Fill(z.Pt(), weight);
       hEff_Y_ll_after->Fill(fabs(z.Rapidity()), weight);
       hEff_costhVsY_after->Fill(costheta, fabs(z.Rapidity()), weight);
+
+      // A4-only sensitivity-loss diagnostics: "after cut" universe.
+      A4_sumW_after->Fill(a4Coordinate, weight);
+      A4_P4sqNum_after->Fill(a4Coordinate, weight * a4Scaled * a4Scaled);
+      a4_sumW_after_incl += weight;
+      a4_sumW2_after_incl += weight * weight;
+      a4_sumWP4sq_after_incl += weight * a4Scaled * a4Scaled;
     }
 
     // Skip remaining analysis ONLY if:
@@ -987,7 +1020,8 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     const double a1Scaled = 5. * aipols[1];
     const double a2Scaled = 10. * aipols[2];
     const double a3Scaled = 4. * aipols[3];
-    const double a4Scaled = 4. * aipols[4];
+    // a4Scaled is already computed earlier (right after the event weight) so
+    // it can also feed the A4-only sensitivity-loss diagnostics above.
     const double a5Scaled = 5. * aipols[5];
     const double a6Scaled = 4. * aipols[6];
     const double a7Scaled = 4. * aipols[7];
@@ -1114,6 +1148,89 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   A5->Divide(Xsw);
   A6->Divide(Xsw);
   A7->Divide(Xsw);
+
+  // --- A4-only sensitivity-loss factor ---
+  // SensitivityLossFactor = sigma(A4)_after / sigma(A4)_before
+  //                       = sqrt( (<P4^2>_after * Neff_before)
+  //                             / (<P4^2>_before * Neff_after) )
+  // where Neff = (sum w)^2 / sum(w^2) (Kish effective count) and
+  // <P4^2> = sum(w*P4^2) / sum(w), both evaluated per A4 bin.
+  // A factor of 1 means the fiducial cut does not change the A4 precision
+  // beyond what is explained by lost acceptance; >1 means the cut inflates
+  // the statistical uncertainty on A4 relative to the uncut sample.
+  TH1D *A4_SensitivityLossFactor = new TH1D("A4_SensitivityLossFactor",
+      ";Bin coordinate;#sigma(A_{4})_{after} / #sigma(A_{4})_{before}", Nbins-1, bins);
+  cout << "\n" << string(70,'=') << endl;
+  cout << "A4 SENSITIVITY LOSS FROM FIDUCIAL CUT" << endl;
+  cout << string(70,'=') << endl;
+  cout << Form("%10s %10s %14s %14s %14s %14s %12s",
+               "BinLow", "BinHigh", "Neff(before)", "Neff(after)",
+               "<P4^2>(bef)", "<P4^2>(aft)", "LossFactor") << endl;
+  for (int b = 1; b <= Nbins-1; ++b) {
+    const double sumW_b  = A4_sumW_before->GetBinContent(b);
+    const double sumW2_b = std::pow(A4_sumW_before->GetBinError(b), 2);
+    const double sumW_a  = A4_sumW_after->GetBinContent(b);
+    const double sumW2_a = std::pow(A4_sumW_after->GetBinError(b), 2);
+    const double p4sqNum_b = A4_P4sqNum_before->GetBinContent(b);
+    const double p4sqNum_a = A4_P4sqNum_after->GetBinContent(b);
+
+    double lossFactor = 0.;
+    double Neff_before = 0., Neff_after = 0., meanP4sq_before = 0., meanP4sq_after = 0.;
+    if (sumW_b > 0. && sumW_a > 0. && sumW2_b > 0. && sumW2_a > 0.) {
+      Neff_before = (sumW_b * sumW_b) / sumW2_b;
+      Neff_after  = (sumW_a * sumW_a) / sumW2_a;
+      meanP4sq_before = p4sqNum_b / sumW_b;
+      meanP4sq_after  = p4sqNum_a / sumW_a;
+      if (meanP4sq_before > 0. && Neff_after > 0.) {
+        lossFactor = std::sqrt((meanP4sq_after * Neff_before) / (meanP4sq_before * Neff_after));
+      }
+    }
+    A4_SensitivityLossFactor->SetBinContent(b, lossFactor);
+    cout << Form("%10.2f %10.2f %14.1f %14.1f %14.6f %14.6f %12.4f",
+                 A4_SensitivityLossFactor->GetXaxis()->GetBinLowEdge(b),
+                 A4_SensitivityLossFactor->GetXaxis()->GetBinUpEdge(b),
+                 Neff_before, Neff_after, meanP4sq_before, meanP4sq_after, lossFactor) << endl;
+  }
+
+  // Inclusive (non-differential) headline number over the full kinematic range.
+  double inclusiveLossFactor = 0.;
+  if (a4_sumW_before_incl > 0. && a4_sumW_after_incl > 0. &&
+      a4_sumW2_before_incl > 0. && a4_sumW2_after_incl > 0.) {
+    const double Neff_before_incl = (a4_sumW_before_incl * a4_sumW_before_incl) / a4_sumW2_before_incl;
+    const double Neff_after_incl  = (a4_sumW_after_incl  * a4_sumW_after_incl)  / a4_sumW2_after_incl;
+    const double meanP4sq_before_incl = a4_sumWP4sq_before_incl / a4_sumW_before_incl;
+    const double meanP4sq_after_incl  = a4_sumWP4sq_after_incl  / a4_sumW_after_incl;
+    if (meanP4sq_before_incl > 0. && Neff_after_incl > 0.) {
+      inclusiveLossFactor = std::sqrt((meanP4sq_after_incl * Neff_before_incl)
+                                     / (meanP4sq_before_incl * Neff_after_incl));
+    }
+  }
+  cout << string(70,'-') << endl;
+  cout << Form("Inclusive (full range): LossFactor = %.4f", inclusiveLossFactor) << endl;
+  cout << string(70,'=') << endl;
+
+  AIZP6::Style(A4_SensitivityLossFactor);
+  A4_SensitivityLossFactor->SetMarkerStyle(20);
+  A4_SensitivityLossFactor->SetMarkerSize(0.8);
+  A4_SensitivityLossFactor->SetStats(false);
+  A4_SensitivityLossFactor->Write("", TObject::kOverwrite);
+  A4_sumW_before->Write("", TObject::kOverwrite);
+  A4_sumW_after->Write("", TObject::kOverwrite);
+  A4_P4sqNum_before->Write("", TObject::kOverwrite);
+  A4_P4sqNum_after->Write("", TObject::kOverwrite);
+
+  TCanvas *cA4SensitivityLoss = new TCanvas("c_A4_sensitivity_loss",
+      "A4 sensitivity loss from fiducial cut", 850, 650);
+  cA4SensitivityLoss->SetLeftMargin(0.16);
+  cA4SensitivityLoss->SetBottomMargin(0.14);
+  A4_SensitivityLossFactor->Draw("E1");
+  TLine *lineA4SensitivityUnity = new TLine(A4_SensitivityLossFactor->GetXaxis()->GetXmin(), 1.0,
+                                             A4_SensitivityLossFactor->GetXaxis()->GetXmax(), 1.0);
+  lineA4SensitivityUnity->SetLineStyle(2);
+  lineA4SensitivityUnity->SetLineColor(kBlack);
+  lineA4SensitivityUnity->Draw();
+  cA4SensitivityLoss->Write("", TObject::kOverwrite);
+  cA4SensitivityLoss->SaveAs((plotPrefix+"_A4_sensitivity_loss.pdf").Data());
 
   hctheta->Write();
   hctheta_truth->Write();

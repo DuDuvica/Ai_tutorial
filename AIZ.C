@@ -30,18 +30,11 @@ bool FiducialCutEtaonly = false ;
 bool FiducialCutCCCF = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCFonly = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCCAsym = false ; // asymmetric CC pT thresholds: 27 GeV leading, 25 GeV subleading
+bool FiducialCutCCconf = true ; // set to true to apply a symmetric CC cut with a configurable pT threshold for both leptons
+double FiducialCutCCconfPt = 27.0; // pT threshold (GeV) applied to both leptons when FiducialCutCCconf is true, e.g. 27.0 or 23.0
 bool zoomA4SensitivityLoss = true; // focus the A4 sensitivity-loss plot on values below 20
 int polynomialIndex = 6; // basis polynomial used by the configurable polynomial diagnostics, 0 through 7
 bool appendPolynomialOutputs = false; // keep P0-P7 diagnostic objects in the same ROOT file across runs
-
-// Determine efficiency histogram suffix based on active fiducial cut
-TString effSuffix = "_CC";
-if (FiducialCutCCAsym) {
-  effSuffix = "_CCAsym";
-} else if (FiducialCutEtaonly) {
-  effSuffix = "_EtaOnly";
-}
-// Default is "_CC" for symmetric CC cut
 
 // Weighted means with numerator/denominator covariance, including signed MC
 // weights. Keep sums so bins with a cancelling denominator are identifiable.
@@ -208,13 +201,14 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   cout << " FiducialCutCCCF: " << FiducialCutCCCF << endl;
   cout << " FiducialCutCFonly: " << FiducialCutCFonly << endl;
   cout << " FiducialCutCCAsym: " << FiducialCutCCAsym << endl;
+  cout << " FiducialCutCCconf: " << FiducialCutCCconf << " (pT threshold: " << FiducialCutCCconfPt << " GeV)" << endl;
   cout << " polynomialIndex: " << polynomialIndex << endl;
   if (polynomialIndex < 0 || polynomialIndex > 7) {
     cout << " ERROR: polynomialIndex must be between 0 and 7" << endl;
     return;
   }
-  if ( (FiducialCutEtaonly || FiducialCutCCCF || FiducialCutCFonly || FiducialCutCCAsym) && !FiducialCut) {
-    cout << " ERROR: FiducialCutEtaonly, FiducialCutCCCF, FiducialCutCFonly, or FiducialCutCCAsym cannot be true if FiducialCut is false. Please set FiducialCut to true to apply fiducial cuts." << endl;
+  if ( (FiducialCutEtaonly || FiducialCutCCCF || FiducialCutCFonly || FiducialCutCCAsym || FiducialCutCCconf) && !FiducialCut) {
+    cout << " ERROR: FiducialCutEtaonly, FiducialCutCCCF, FiducialCutCFonly, FiducialCutCCAsym, or FiducialCutCCconf cannot be true if FiducialCut is false. Please set FiducialCut to true to apply fiducial cuts." << endl;
     return;
   }
   
@@ -224,14 +218,16 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   if (FiducialCutCCCF) numActiveCuts++;
   if (FiducialCutCFonly) numActiveCuts++;
   if (FiducialCutCCAsym) numActiveCuts++;
+  if (FiducialCutCCconf) numActiveCuts++;
   
   if (numActiveCuts > 1) {
-    cout << " ERROR: Only one of FiducialCutEtaonly, FiducialCutCCCF, FiducialCutCFonly, or FiducialCutCCAsym can be true at a time." << endl;
+    cout << " ERROR: Only one of FiducialCutEtaonly, FiducialCutCCCF, FiducialCutCFonly, FiducialCutCCAsym, or FiducialCutCCconf can be true at a time." << endl;
     cout << " Currently active cuts:" << endl;
     if (FiducialCutEtaonly) cout << "  - FiducialCutEtaonly = true" << endl;
     if (FiducialCutCCCF) cout << "  - FiducialCutCCCF = true" << endl;
     if (FiducialCutCFonly) cout << "  - FiducialCutCFonly = true" << endl;
     if (FiducialCutCCAsym) cout << "  - FiducialCutCCAsym = true" << endl;
+    if (FiducialCutCCconf) cout << "  - FiducialCutCCconf = true" << endl;
     return;
   }
 
@@ -329,12 +325,25 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
   if (normXS) mode = mode + "_NormXsec";
 
   std::cout << "Looking at File " << minitree << std::endl;
+  
+  // Determine efficiency histogram suffix based on active fiducial cut
+  TString effSuffix = "_CC";
+  if (FiducialCutCCAsym) {
+    effSuffix = "_CCAsym";
+  } else if (FiducialCutCCconf) {
+    effSuffix = Form("_CCconf%.0f", FiducialCutCCconfPt);
+  } else if (FiducialCutEtaonly) {
+    effSuffix = "_EtaOnly";
+  }
+  // Default is "_CC" for symmetric CC cut
+  
   TString prefix = ifTrueOnly ? "Truth_" : "";
   if ( FiducialCut ) prefix = prefix + "Fiducial_";
   if (FiducialCutEtaonly) prefix = prefix + "EtaOnly_";
   if (FiducialCutCCCF) prefix = prefix + "CCCF_";
   if (FiducialCutCFonly) prefix = prefix + "CFonly_";
   if (FiducialCutCCAsym) prefix = prefix + "CCAsym_";
+  if (FiducialCutCCconf) prefix = prefix + Form("CCconf%.0f_", FiducialCutCCconfPt);
   TString nameOutput = "AI_Z_"+prefix+outputName+mode+".root";
   TFile* Output = new TFile(nameOutput, "UPDATE");
   bool isf = !Output->IsZombie();
@@ -718,6 +727,8 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
                              (fabs(em.Eta()) >= 2.5 && fabs(ep.Eta()) < 2.5)));
     bool passesAsymCut = (pt_leading_diag >= 27.0 && pt_subleading_diag >= 25.0 && 
                           fabs(eta_leading_diag) <= 2.5 && fabs(eta_subleading_diag) <= 2.5);
+    bool passesCCConfCut = (em.Pt() >= FiducialCutCCconfPt && fabs(em.Eta()) <= 2.5 &&
+                            ep.Pt() >= FiducialCutCCconfPt && fabs(ep.Eta()) <= 2.5);
 
     // Skip event if running with FiducialCut enabled and cuts not passed
     if (ifTrueOnly && FiducialCut) {
@@ -731,6 +742,8 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
         shouldKeepEvent = passesCFOnlyCut;
       } else if (FiducialCutCCAsym) {
         shouldKeepEvent = passesAsymCut;
+      } else if (FiducialCutCCconf) {
+        shouldKeepEvent = passesCCConfCut;
       } else {
         // Default: symmetric CC cut
         shouldKeepEvent = passesCCCut;
@@ -827,6 +840,8 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     
     if (FiducialCutCCAsym && ifTrueOnly && FiducialCut) {
       fillAfter = passesAsymCut;
+    } else if (FiducialCutCCconf && ifTrueOnly && FiducialCut) {
+      fillAfter = passesCCConfCut;
     } else if (FiducialCutEtaonly && ifTrueOnly && FiducialCut) {
       fillAfter = passesEtaOnlyCut;
     } else if (FiducialCutCCCF && ifTrueOnly && FiducialCut) {

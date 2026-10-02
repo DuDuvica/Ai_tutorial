@@ -14,7 +14,7 @@ The polynomial diagnostics default to `polynomialIndex = 6`. Set it to any value
 0 to 7 either before calling `AIZ`, or pass it directly as the second argument:
 
 ```bash
-root -l -q -e '.L TLVUtils.cxx' -e '.L AIZ.C' -e 'override=true;' -e 'test=true;' -e 'AIZ(true, 4);'
+root -l -q -e '.L TLVUtils.cxx' -e '.L AIZ.C' -e 'override=true;' -e 'test=false;' -e 'AIZ(true, 4);'
 ```
 
 This writes `P2_polynomial.pdf`, `P2_observables.pdf`, and `P2_sensitivity.pdf`
@@ -69,6 +69,55 @@ test = true;      // optional: quick run
 AIZ(false);       // pT binning
 // AIZ(true);     // |y| binning
 ```
+
+To focus the A4 sensitivity-loss PDF on the bulk of its distribution, set
+`zoomA4SensitivityLoss = true` before calling `AIZ`. The zoomed plot is capped at
+20 on the y-axis, so larger values are clipped; leave the flag false for the
+full-range plot.
+
+### Interpreting and comparing A4 sensitivity-loss plots
+
+The plotted factor is the estimated statistical uncertainty on `A4` after the
+fiducial cut divided by that before the cut:
+
+`SensitivityLossFactor = sigma(A4)_after / sigma(A4)_before`.
+
+In this estimate, the information per bin is approximated by
+`N_eff * <P4^2>`, so
+`SensitivityLossFactor = sqrt((N_eff_before * <P4^2>_before) / (N_eff_after * <P4^2>_after))`.
+Fewer effective events or a smaller `P4` lever arm means less information and
+therefore a larger uncertainty ratio.
+
+The horizontal coordinate is `pT(Z)` when `AIZ(false)` is run and `|y(Z)|` when
+`AIZ(true)` is run. A factor of 1 means unchanged estimated uncertainty; above 1
+means the cut worsens precision, and below 1 means the accepted events retain
+enough `A4` information to give a smaller estimated uncertainty despite the
+reduced sample size. This is an uncertainty ratio, not the fraction of events
+accepted. Empty or undefined bins are stored as zero; they do not mean zero
+uncertainty. When the zoom flag is enabled, values above 20 are clipped.
+
+For the currently available plots:
+
+- `AI_Z_Truth_Fiducial_CFonly_testPowheg_Y_NormXsec_A4_sensitivity_loss.pdf`
+  uses the CFonly cut: both leptons have `pT >= 25 GeV`, with one in the central
+  region (`|eta| < 2.5`) and one outside it (`|eta| >= 2.5`). Most populated
+  bins have factors above 1. The first populated bin (`|y| = 1.0–1.2`) is about
+  46.7 with the corrected formula. It contains only one accepted event and is
+  clipped by the plot's y-axis maximum of 20, so treat it as a low-statistics
+  result.
+- `AI_Z_Truth_Fiducial_CCAsym_Zai_finalbinningPowheg_Y_NormXsec_A4_sensitivity_loss.pdf`
+  uses the asymmetric central-central cut: both leptons are central, with
+  leading `pT >= 27 GeV` and subleading `pT >= 25 GeV`. Its corrected factors
+  rise from about 1.56 at low `|y|` to about 95.2 at `|y| = 2.4–2.6`; the
+  latter bin has very low acceptance and should be treated cautiously. Bins
+  above `|y| = 2.6` are empty/undefined.
+
+These PDFs use the same `|y|` binning, but different cuts and different named MC
+productions (`testPowheg` versus `Zai_finalbinningPowheg`). Their difference
+cannot be attributed to the cut alone; a controlled cut comparison should use
+the same underlying events and production settings. Also note the different
+y-axis ranges: the CFonly plot is zoomed and clipped at 20, while the CCAsym
+plot shows its full range.
 
 ### 4) One-line batch command (no interactive ROOT prompt)
 

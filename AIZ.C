@@ -30,6 +30,7 @@ bool FiducialCutEtaonly = false ;
 bool FiducialCutCCCF = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCFonly = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCCAsym = false ; // asymmetric CC pT thresholds: 27 GeV leading, 25 GeV subleading
+bool zoomA4SensitivityLoss = true; // focus the A4 sensitivity-loss plot on values below 20
 int polynomialIndex = 6; // basis polynomial used by the configurable polynomial diagnostics, 0 through 7
 bool appendPolynomialOutputs = false; // keep P0-P7 diagnostic objects in the same ROOT file across runs
 
@@ -1151,13 +1152,12 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
 
   // --- A4-only sensitivity-loss factor ---
   // SensitivityLossFactor = sigma(A4)_after / sigma(A4)_before
-  //                       = sqrt( (<P4^2>_after * Neff_before)
-  //                             / (<P4^2>_before * Neff_after) )
+  //                       = sqrt( (Neff_before * <P4^2>_before)
+  //                             / (Neff_after  * <P4^2>_after) )
   // where Neff = (sum w)^2 / sum(w^2) (Kish effective count) and
   // <P4^2> = sum(w*P4^2) / sum(w), both evaluated per A4 bin.
-  // A factor of 1 means the fiducial cut does not change the A4 precision
-  // beyond what is explained by lost acceptance; >1 means the cut inflates
-  // the statistical uncertainty on A4 relative to the uncut sample.
+  // This uses information proportional to Neff*<P4^2>; a smaller sample or
+  // reduced P4 lever arm therefore increases the estimated uncertainty.
   TH1D *A4_SensitivityLossFactor = new TH1D("A4_SensitivityLossFactor",
       ";Bin coordinate;#sigma(A_{4})_{after} / #sigma(A_{4})_{before}", Nbins-1, bins);
   cout << "\n" << string(70,'=') << endl;
@@ -1181,8 +1181,10 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
       Neff_after  = (sumW_a * sumW_a) / sumW2_a;
       meanP4sq_before = p4sqNum_b / sumW_b;
       meanP4sq_after  = p4sqNum_a / sumW_a;
-      if (meanP4sq_before > 0. && Neff_after > 0.) {
-        lossFactor = std::sqrt((meanP4sq_after * Neff_before) / (meanP4sq_before * Neff_after));
+      if (meanP4sq_before > 0. && meanP4sq_after > 0. &&
+          Neff_before > 0. && Neff_after > 0.) {
+        lossFactor = std::sqrt((Neff_before * meanP4sq_before)
+                              / (Neff_after * meanP4sq_after));
       }
     }
     A4_SensitivityLossFactor->SetBinContent(b, lossFactor);
@@ -1200,9 +1202,10 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
     const double Neff_after_incl  = (a4_sumW_after_incl  * a4_sumW_after_incl)  / a4_sumW2_after_incl;
     const double meanP4sq_before_incl = a4_sumWP4sq_before_incl / a4_sumW_before_incl;
     const double meanP4sq_after_incl  = a4_sumWP4sq_after_incl  / a4_sumW_after_incl;
-    if (meanP4sq_before_incl > 0. && Neff_after_incl > 0.) {
-      inclusiveLossFactor = std::sqrt((meanP4sq_after_incl * Neff_before_incl)
-                                     / (meanP4sq_before_incl * Neff_after_incl));
+    if (meanP4sq_before_incl > 0. && meanP4sq_after_incl > 0. &&
+        Neff_before_incl > 0. && Neff_after_incl > 0.) {
+      inclusiveLossFactor = std::sqrt((Neff_before_incl * meanP4sq_before_incl)
+                                     / (Neff_after_incl * meanP4sq_after_incl));
     }
   }
   cout << string(70,'-') << endl;
@@ -1223,6 +1226,7 @@ void AIZ(bool isY=false, int configuredPolynomialIndex=-1){
       "A4 sensitivity loss from fiducial cut", 850, 650);
   cA4SensitivityLoss->SetLeftMargin(0.16);
   cA4SensitivityLoss->SetBottomMargin(0.14);
+  if (zoomA4SensitivityLoss) A4_SensitivityLossFactor->SetMaximum(20.);
   A4_SensitivityLossFactor->Draw("E1");
   TLine *lineA4SensitivityUnity = new TLine(A4_SensitivityLossFactor->GetXaxis()->GetXmin(), 1.0,
                                              A4_SensitivityLossFactor->GetXaxis()->GetXmax(), 1.0);

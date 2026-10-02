@@ -69,6 +69,36 @@ def detect_efficiency_suffix(root_file):
         print(f"ERROR detecting suffix: {e}")
         return None
 
+def derive_cut_label(root_file):
+    """Derive a short cut-mode label from the AIZ.C output file name tag.
+
+    AIZ.C encodes the active fiducial cut directly in the output file name,
+    e.g. ..._Fiducial_CCAsym_..., ..._Fiducial_EtaOnly_...,
+    ..._Fiducial_CCCF_..., ..._Fiducial_CFonly_..., or plain ..._Fiducial_...
+    for the default symmetric CC cut. Files without "_Fiducial_" at all were
+    produced with FiducialCut=false (no cut applied, full phase space).
+
+    Args:
+        root_file (str): Path to ROOT file (only the base name is inspected)
+
+    Returns:
+        str: Short label such as "CC", "CCAsym", "EtaOnly", "CCCF", "CFonly",
+             or "NoCut".
+    """
+    import os
+    name = os.path.basename(root_file)
+    if "_EtaOnly_" in name:
+        return "EtaOnly"
+    if "_CCCF_" in name:
+        return "CCCF"
+    if "_CFonly_" in name:
+        return "CFonly"
+    if "_CCAsym_" in name:
+        return "CCAsym"
+    if "_Fiducial_" in name:
+        return "CC"
+    return "NoCut"
+
 def setup_histogram_style(hist, color=1, marker_style=20):
     """Setup histogram style for plotting."""
     hist.SetLineColor(color)
@@ -170,7 +200,8 @@ def calculate_relative_difference(h1, h2):
     
     return h_diff
 
-def create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suffix2):
+def create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suffix2,
+                                     label1="File 1", label2="File 2"):
     """Create overlaid comparison plots from two files with ratio.
     
     Args:
@@ -178,6 +209,8 @@ def create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suf
         root_file2 (str): Path to second ROOT file (typically without cut)
         eff_suffix1 (str): Efficiency histogram suffix for file 1
         eff_suffix2 (str): Efficiency histogram suffix for file 2
+        label1 (str): Short cut-mode label for file 1 (e.g. "CC")
+        label2 (str): Short cut-mode label for file 2 (e.g. "CCAsym")
     """
     try:
         f1 = ROOT.TFile.Open(root_file1, "READ")
@@ -230,8 +263,8 @@ def create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suf
             h2_norm.Draw("PE SAME")
             
             legend = ROOT.TLegend(0.60, 0.75, 0.95, 0.95)
-            legend.AddEntry(h1_norm, "File 1 (with cut)", "PE")
-            legend.AddEntry(h2_norm, "File 2 (without cut)", "PE")
+            legend.AddEntry(h1_norm, f"File 1 ({label1})", "PE")
+            legend.AddEntry(h2_norm, f"File 2 ({label2})", "PE")
             legend.Draw()
             
             h1_norm.SetTitle(f"Normalized {var_label} - Overlay")
@@ -244,9 +277,9 @@ def create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suf
             
             h_ratio = calculate_ratio_histogram(h1, h2)
             setup_histogram_style(h_ratio, ROOT.kGreen + 2, 20)
-            h_ratio.SetTitle(f"Ratio (File1/File2) - {var_label}")
+            h_ratio.SetTitle(f"Ratio ({label1}/{label2}) - {var_label}")
             h_ratio.GetXaxis().SetTitle(var_label)
-            h_ratio.GetYaxis().SetTitle("Ratio (File1/File2)")
+            h_ratio.GetYaxis().SetTitle(f"Ratio ({label1}/{label2})")
             set_ratio_axis_range(h_ratio, h2)
             h_ratio.Draw("PE")
             
@@ -259,8 +292,9 @@ def create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suf
             
             print(f"Created overlay comparison plot for {var_label}")
         
-        canvas.SaveAs("acceptance_overlay_comparison.pdf")
-        print(f"\nSaved overlay comparison plots to: acceptance_overlay_comparison.pdf\n")
+        output_name = f"acceptance_overlay_comparison_{label1}_vs_{label2}.pdf"
+        canvas.SaveAs(output_name)
+        print(f"\nSaved overlay comparison plots to: {output_name}\n")
         
         f1.Close()
         f2.Close()
@@ -270,7 +304,8 @@ def create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suf
         import traceback
         traceback.print_exc()
 
-def create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2):
+def create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2,
+                                 label1="File 1", label2="File 2"):
     """Create detailed ratio analysis plots.
     
     Args:
@@ -278,6 +313,8 @@ def create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2
         root_file2 (str): Path to second ROOT file
         eff_suffix1 (str): Efficiency histogram suffix for file 1
         eff_suffix2 (str): Efficiency histogram suffix for file 2
+        label1 (str): Short cut-mode label for file 1 (e.g. "CC")
+        label2 (str): Short cut-mode label for file 2 (e.g. "CCAsym")
     """
     try:
         f1 = ROOT.TFile.Open(root_file1, "READ")
@@ -316,9 +353,9 @@ def create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2
             
             h_ratio = calculate_ratio_histogram(h1, h2)
             setup_histogram_style(h_ratio, ROOT.kBlue + 1, 20)
-            h_ratio.SetTitle(f"Ratio (File1/File2) - {var_label}")
+            h_ratio.SetTitle(f"Ratio ({label1}/{label2}) - {var_label}")
             h_ratio.GetXaxis().SetTitle(var_label)
-            h_ratio.GetYaxis().SetTitle("Ratio (File1/File2)")
+            h_ratio.GetYaxis().SetTitle(f"Ratio ({label1}/{label2})")
             h_ratio.Draw("PE")
             
             line = ROOT.TLine(h_ratio.GetXaxis().GetXmin(), 1.0,
@@ -331,10 +368,11 @@ def create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2
             ratio_mean = h_ratio.GetMean()
             
             print(f"\n{var_label}:")
-            print(f"  Mean ratio (File1/File2): {ratio_mean:.6f}")
+            print(f"  Mean ratio ({label1}/{label2}): {ratio_mean:.6f}")
         
-        canvas.SaveAs("acceptance_ratio_analysis.pdf")
-        print(f"\nSaved ratio analysis plots to: acceptance_ratio_analysis.pdf\n")
+        output_name = f"acceptance_ratio_analysis_{label1}_vs_{label2}.pdf"
+        canvas.SaveAs(output_name)
+        print(f"\nSaved ratio analysis plots to: {output_name}\n")
         
         f1.Close()
         f2.Close()
@@ -344,7 +382,8 @@ def create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2
         import traceback
         traceback.print_exc()
 
-def create_sensitivity_loss_comparison_plots(root_file1, root_file2):
+def create_sensitivity_loss_comparison_plots(root_file1, root_file2,
+                                              label1="File 1", label2="File 2"):
     """Compare the A4 SensitivityLossFactor between two files.
 
     A4_SensitivityLossFactor (and its underlying A4_sumW_*/A4_P4sqNum_* inputs)
@@ -357,6 +396,8 @@ def create_sensitivity_loss_comparison_plots(root_file1, root_file2):
     Args:
         root_file1 (str): Path to first ROOT file
         root_file2 (str): Path to second ROOT file
+        label1 (str): Short cut-mode label for file 1 (e.g. "CC")
+        label2 (str): Short cut-mode label for file 2 (e.g. "CCAsym")
     """
     try:
         f1 = ROOT.TFile.Open(root_file1, "READ")
@@ -401,8 +442,8 @@ def create_sensitivity_loss_comparison_plots(root_file1, root_file2):
         h2_clone.Draw("PE SAME")
         
         legend = ROOT.TLegend(0.55, 0.75, 0.95, 0.95)
-        legend.AddEntry(h1_clone, "File 1", "PE")
-        legend.AddEntry(h2_clone, "File 2", "PE")
+        legend.AddEntry(h1_clone, f"File 1 ({label1})", "PE")
+        legend.AddEntry(h2_clone, f"File 2 ({label2})", "PE")
         legend.Draw()
         
         line_unity = ROOT.TLine(h1_clone.GetXaxis().GetXmin(), 1.0,
@@ -418,8 +459,8 @@ def create_sensitivity_loss_comparison_plots(root_file1, root_file2):
         h_difference = h1.Clone("A4_SensitivityLossFactor_difference")
         h_difference.Add(h2, -1.0)
         setup_histogram_style(h_difference, ROOT.kGreen + 2, 20)
-        h_difference.SetTitle("Difference (File1 - File2) - A_{4} Sensitivity Loss Factor")
-        h_difference.GetYaxis().SetTitle("Sensitivity Loss Factor Difference (File1 - File2)")
+        h_difference.SetTitle(f"Difference ({label1} - {label2}) - A_{{4}} Sensitivity Loss Factor")
+        h_difference.GetYaxis().SetTitle(f"Sensitivity Loss Factor Difference ({label1} - {label2})")
         populated_differences = [
             h_difference.GetBinContent(b)
             for b in range(1, h_difference.GetNbinsX() + 1)
@@ -441,9 +482,9 @@ def create_sensitivity_loss_comparison_plots(root_file1, root_file2):
         line_difference_zero.SetLineColor(ROOT.kBlack)
         line_difference_zero.Draw()
         
-        canvas.SaveAs("acceptance_A4_sensitivity_loss_comparison.pdf")
-        print(f"\nSaved A4 sensitivity-loss comparison to: "
-              f"acceptance_A4_sensitivity_loss_comparison.pdf")
+        output_name = f"acceptance_A4_sensitivity_loss_comparison_{label1}_vs_{label2}.pdf"
+        canvas.SaveAs(output_name)
+        print(f"\nSaved A4 sensitivity-loss comparison to: {output_name}")
         
         # Per-bin printout
         print(f"\n{'BinLow':>10} {'BinHigh':>10} {'LossFactor1':>14} {'LossFactor2':>14} {'Difference(1-2)':>16}")
@@ -474,8 +515,9 @@ def create_sensitivity_loss_comparison_plots(root_file1, root_file2):
             sum(common_valid_differences) / len(common_valid_differences)
             if common_valid_differences else float("nan")
         )
-        print(f"\nMean LossFactor (bin-averaged): File 1 = {mean1:.4f}, File 2 = {mean2:.4f}")
-        print(f"Mean Difference (File1 - File2, common valid bins): {mean_difference:.4f}")
+        print(f"\nMean LossFactor (bin-averaged): File 1 ({label1}) = {mean1:.4f}, "
+              f"File 2 ({label2}) = {mean2:.4f}")
+        print(f"Mean Difference ({label1} - {label2}, common valid bins): {mean_difference:.4f}")
         
         f1.Close()
         f2.Close()
@@ -504,13 +546,22 @@ def compare_two_files(root_file1, root_file2):
         
         suffix_name = {"_CC": "symmetric CC", "_EtaOnly": "eta-only", "_CCAsym": "asymmetric CC"}
         
+        # Short cut-mode labels derived from the output file name itself (per
+        # AIZ.C's "prefix" naming convention), used for legends and plot file
+        # names. This covers all 5 fiducial-cut modes, unlike eff_suffix1/2
+        # above which cannot distinguish CFonly/CCCF from the default CC cut.
+        label1 = derive_cut_label(root_file1)
+        label2 = derive_cut_label(root_file2)
+        
         print(f"\n" + "="*70)
         print("TWO-FILE COMPARISON MODE")
         print("="*70)
         print(f"File 1: {root_file1}")
-        print(f"  Detected cut mode: {suffix_name.get(eff_suffix1, 'unknown')}")
+        print(f"  Detected cut mode (histogram suffix): {suffix_name.get(eff_suffix1, 'unknown')}")
+        print(f"  Cut-mode label (from file name): {label1}")
         print(f"File 2: {root_file2}")
-        print(f"  Detected cut mode: {suffix_name.get(eff_suffix2, 'unknown')}")
+        print(f"  Detected cut mode (histogram suffix): {suffix_name.get(eff_suffix2, 'unknown')}")
+        print(f"  Cut-mode label (from file name): {label2}")
         print("="*70)
         
         f1 = ROOT.TFile.Open(root_file1, "READ")
@@ -586,16 +637,19 @@ def compare_two_files(root_file1, root_file2):
         f2.Close()
         
         # Create visualization plots
-        create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suffix2)
-        create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2)
-        create_sensitivity_loss_comparison_plots(root_file1, root_file2)
+        create_overlay_comparison_plots(root_file1, root_file2, eff_suffix1, eff_suffix2,
+                                         label1, label2)
+        create_ratio_analysis_plots(root_file1, root_file2, eff_suffix1, eff_suffix2,
+                                     label1, label2)
+        create_sensitivity_loss_comparison_plots(root_file1, root_file2, label1, label2)
         
         print("\n" + "="*70)
         print("TWO-FILE COMPARISON COMPLETE")
         print("Generated output files:")
-        print("  - acceptance_overlay_comparison.pdf")
-        print("  - acceptance_ratio_analysis.pdf")
-        print("  - acceptance_A4_sensitivity_loss_comparison.pdf (if A4_SensitivityLossFactor present)")
+        print(f"  - acceptance_overlay_comparison_{label1}_vs_{label2}.pdf")
+        print(f"  - acceptance_ratio_analysis_{label1}_vs_{label2}.pdf")
+        print(f"  - acceptance_A4_sensitivity_loss_comparison_{label1}_vs_{label2}.pdf "
+              f"(if A4_SensitivityLossFactor present)")
         print("="*70 + "\n")
         
     except Exception as e:

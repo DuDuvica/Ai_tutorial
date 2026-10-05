@@ -1426,6 +1426,37 @@ def create_multi_sensitivity_loss_comparison_plots(root_files, labels):
     for f in files:
         f.Close()
 
+def get_total_acceptance(root_file, eff_suffix):
+    """Return (before, after, acceptance) from the cos(theta) before/after-cut histograms."""
+    f = ROOT.TFile.Open(root_file, "READ")
+    if not f or f.IsZombie():
+        return None
+    h_before = f.Get(f"eff_costheta_before{eff_suffix}")
+    h_after = f.Get(f"eff_costheta_after{eff_suffix}")
+    if not h_before or not h_after:
+        f.Close()
+        return None
+    before, after = h_before.Integral(), h_after.Integral()
+    f.Close()
+    return before, after, (after / before if before > 0 else None)
+
+def print_total_acceptance_table(root_files, suffixes, labels):
+    """Print total acceptance per file and relative to the first (reference) file."""
+    results = [get_total_acceptance(f, s) for f, s in zip(root_files, suffixes)]
+    ref = results[0][2] if results[0] else None
+    print("\n" + "="*70)
+    print("TOTAL ACCEPTANCE TABLE (after cut / before cut)")
+    print("="*70)
+    print(f"{'File':<28}{'Before':>12}{'After':>12}{'Acceptance':>12}{'Rel. to ref':>12}")
+    print("-"*76)
+    for label, r in zip(labels, results):
+        if not r or r[2] is None:
+            print(f"{label:<28}{'n/a':>12}{'n/a':>12}{'n/a':>12}{'n/a':>12}")
+            continue
+        rel = f"{r[2]/ref:.4f}" if ref else "n/a"
+        print(f"{label:<28}{r[0]:>12.2f}{r[1]:>12.2f}{r[2]:>12.5f}{rel:>12}")
+    print("="*70)
+
 def compare_multiple_files(root_files):
     """Compare three or more ROOT files; the first file is the reference for all ratios."""
     suffixes = [detect_efficiency_suffix(f) for f in root_files]
@@ -1442,6 +1473,8 @@ def compare_multiple_files(root_files):
         print(f"  Detected cut mode (histogram suffix): {get_suffix_label(suffix)}")
         print(f"  Cut-mode label: {label}")
     print("="*70)
+
+    print_total_acceptance_table(root_files, suffixes, labels)
 
     create_multi_overlay_comparison_plots(root_files, suffixes, labels, normalized=True)
     create_multi_overlay_comparison_plots(root_files, suffixes, labels, normalized=False)

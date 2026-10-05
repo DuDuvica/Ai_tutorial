@@ -26,11 +26,11 @@ bool override = true; // set to true to overwrite existing output file without p
 bool normXS = true;
 bool ifTrueOnly = true;
 bool FiducialCut = true; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
-bool FiducialCutEtaonly = false ;
+bool FiducialCutEtaonly = true ;
 bool FiducialCutCCCF = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCFonly = false ; // set to true to apply fiducial cuts at truth level, false to use all events (only relevant if ifTrueOnly=true)
 bool FiducialCutCCAsym = false ; // asymmetric CC pT thresholds: 27 GeV leading, 25 GeV subleading
-bool FiducialCutCCconf = true ; // set to true to apply a symmetric CC cut with a configurable pT threshold for both leptons
+bool FiducialCutCCconf = false ; // set to true to apply a symmetric CC cut with a configurable pT threshold for both leptons
 double FiducialCutCCconfPt = 27.0; // pT threshold (GeV) applied to both leptons when FiducialCutCCconf is true, e.g. 27.0 or 23.0
 bool zoomA4SensitivityLoss = true; // focus the A4 sensitivity-loss plot on values below 20
 int polynomialIndex = 6; // basis polynomial used by the configurable polynomial diagnostics, 0 through 7
